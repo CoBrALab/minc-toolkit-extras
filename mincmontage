@@ -1,0 +1,231 @@
+#!/usr/bin/perl
+# 
+# creates a montage image from a label and a MR image
+# 
+#
+use strict;
+use warnings "all";
+use Getopt::Tabular;
+use File::Basename;
+use File::Temp qw/ tempdir /;
+use POSIX qw/floor ceil/;
+use List::Util qw/max min/; 
+
+my($Help, $Usage, $me);
+my(@opt_table, %opt, $input_t1, $labels, $outfile, @args, $tmpdir);
+
+$me = &basename($0);
+%opt = (
+   'clobber'           => 0,
+   'comparison_labels' => undef,
+   'step_size'         => undef,
+   'slices'            => undef,
+   'clamp_t1'          => 0,
+   'max_images'        => 10,
+   'sagittal_slice'    => undef, 
+   'coronal_slice'     => undef, 
+   'axial_slice'       => undef, 
+   'bbox_threshold'    => 0, 
+   'dissolve'          => 55, 
+   'show_t1'           => 0, 
+   'isostep'           => undef, 
+   );
+
+$Help = <<HELP;
+| $me creates a montage from a label and an MR image.
+| 
+| Problems or comments should be sent to: jon.pipitone\@utoronto.ca
+HELP
+
+$Usage = "Usage: $me [options] T1.mnc labels.mnc [montage.png]\n".
+         "       $me -help to list options\n\n";
+
+@opt_table = (
+   ["-clobber", "boolean", 0, \$opt{clobber},
+      "clobber existing check files" ],
+   ["-comparison_labels", "string", 1, \$opt{comparison_labels},
+      "labels to contrast with in montage" ],
+   ["-step_size", "integer", 1, \$opt{step_size},
+      "number of slices to skip between images in the montage. Default is picked heuristically." ],
+   ["-sagittal_slice", "integer", 1, \$opt{sagittal_slice}, "clamp sagittal slice to here."],
+   ["-coronal_slice", "integer", 1, \$opt{coronal_slice}, "clamp coronal slice to here."],
+   ["-axial_slice", "integer", 1, \$opt{axial_slice}, "clamp axial slice to here."],
+   ["-bbox_threshold", "integer", 1, \$opt{bbox_threshold}, "threshold to use when running mincbbox"],
+   ["-dissolve", "integer", 1, \$opt{dissolve}, "Percent alpha for labels over anatomical image.  Range 0-100."],
+   ["-show_t1", "boolean", 0, \$opt{show_t1}, "Show T1 image beside each slice."],
+   ["-clamp_t1", "boolean", 0, \$opt{clamp_t1}, "Clamp the min/max range of the T1 image."],
+   ["-slices", "integer", 1, \$opt{slices}, "Number of slices to take in each aspect."],
+   ["-isostep", "float", 1, \$opt{isostep}, "Resample images with the given step in all directions."],
+   );
+
+# Check arguments
+&Getopt::Tabular::SetHelp($Help, $Usage);
+&GetOptions (\@opt_table, \@ARGV) || exit 1;
+die $Usage if(! ($#ARGV == 2 || $#ARGV == 3));
+$input_t1 = shift(@ARGV);
+$labels      = shift(@ARGV);
+$outfile = (defined($ARGV[0])) ? shift(@ARGV) : 'montage.png';
+
+# check for files
+die "$me: Couldn't find input file: $labels\n\n" if (!-e $labels);
+if(defined($outfile) && -e $outfile && !$opt{clobber}){
+   die "$me: $outfile exists, -clobber to overwrite\n\n";
+}
+$tmpdir = &tempdir("$me-XXXXXXXXXXX", TMPDIR => 1, CLEANUP => 0);
+
+if (defined($opt{comparison_labels})) { 
+  my $tmp_labels = "${tmpdir}/labels.mnc";
+  do_cmd('minccalc', '-quiet',
+         '-expression', "A[0] + A[1]", $opt{comparison_labels}, $labels, $tmp_labels);
+  $labels = $tmp_labels
+}
+
+# reorder label values to be consecutive
+#my $tmp_labels = "${tmpdir}/labels_consecutive.mnc";
+#do_cmd('reorder_labels.sh', $labels, $tmp_labels);
+#$labels = $tmp_labels;
+
+# iso step
+#
+do_cmd('autocrop+', '-byte', '-keep_real_range', '-nearest_neighbour', 
+  '-isostep', $opt{isostep}, $labels, "${tmpdir}/isostep_labels.mnc") if defined($opt{isostep});
+do_cmd('autocrop', '-isostep', $opt{isostep}, $input_t1, "${tmpdir}/isostep_t1.mnc") if defined($opt{isostep});
+$labels   = "${tmpdir}/isostep_labels.mnc"; 
+$input_t1 = "${tmpdir}/isostep_t1.mnc";
+
+# bounding box
+#
+my $isoexpand = 5; 
+my @bbox     = split(' ', qx(mincbbox -mincreshape -threshold $opt{bbox_threshold} $labels));
+@bbox = split(',',$bbox[1].','.$bbox[3]);
+
+my $maxwidth = ceil(max(@bbox[3..5])) + $isoexpand*2; 
+($bbox[0],$bbox[1],$bbox[2]) = ($bbox[0]-floor(($maxwidth - $bbox[3])/2), 
+                                $bbox[1]-floor(($maxwidth - $bbox[4])/2), 
+                                $bbox[2]-floor(($maxwidth - $bbox[5])/2));
+($bbox[3],$bbox[4],$bbox[5]) = ($maxwidth, $maxwidth, $maxwidth);
+
+do_cmd('mincreshape', $labels, "${tmpdir}/cropped_labels.mnc", 
+  "-start", join(",",@bbox[0..2]), "-count", join(",", @bbox[3..5])); 
+do_cmd('mincreshape', $input_t1, "${tmpdir}/cropped_t1.mnc", 
+  "-start", join(",",@bbox[0..2]), "-count", join(",", @bbox[3..5])); 
+
+$labels   = "${tmpdir}/cropped_labels.mnc"; 
+$input_t1 = "${tmpdir}/cropped_t1.mnc";
+
+# Set up bounding box so that we have a matrix like so: 
+#    max x  min x
+#    max y  min y
+#    max z  min z
+
+my @worldbbox = @bbox;
+@worldbbox[0..2] = ($bbox[3]-$isoexpand, $bbox[4]-$isoexpand,$bbox[5]-$isoexpand);
+@worldbbox[3..5] = ($isoexpand,$isoexpand,$isoexpand);
+
+# Clamping
+#
+if ($opt{clamp_t1}) {
+  my $max = `mincstats -max -quiet $input_t1`;
+  chomp($max);
+
+  my $min = `mincstats -min -quiet $input_t1`;
+  chomp($min);
+
+  do_cmd('minccalc', '-quiet',
+         '-expression', "100*((A[0]-${min})/(${max}-${min}))",
+          $input_t1, "${tmpdir}/clamp.mnc");
+  $input_t1 = "{tmpdir}/clamp.mnc";
+}
+
+# step size calculation
+#
+my $step;
+if (defined($opt{step_size})) { 
+  $step = $opt{step_size};
+} else {
+  # set the step size such that we get max_images on the largest dimension
+  $step = max( 1, int(max($worldbbox[0]-$worldbbox[3],$worldbbox[1]-$worldbbox[4],$worldbbox[2]-$worldbbox[5]) / $opt{max_images}) ); 
+}
+
+my @axial_slices; 
+my @sagittal_slices; 
+my @coronal_slices; 
+my @montage_images; 
+
+push(@sagittal_slices, $opt{sagittal_slice}) if defined($opt{sagittal_slice});
+push(@coronal_slices, $opt{coronal_slice}) if defined($opt{coronal_slice});
+push(@axial_slices, $opt{axial_slice}) if defined($opt{axial_slice});
+
+if (!(defined($opt{sagittal_slice}) || defined($opt{coronal_slice}) || defined($opt{axial_slice}))) { 
+  $step = max( 1, int(($worldbbox[0] - $worldbbox[3]) / $opt{slices})) if defined($opt{slices}); 
+  for (my $i = $worldbbox[3] + $step; $i <= $worldbbox[0]; $i += $step) {
+    push (@sagittal_slices, int($i));
+  }
+} 
+my $max_slices = max(scalar(@sagittal_slices));
+
+print "\n ----------------------------------\n";
+print " Bounding box: ", join(", ", @worldbbox[0..2]), "\n";
+print "               ", join(", ", @worldbbox[3..5]), "\n";
+print " Step size:    ", $step, "\n";
+print " Sagittal slices: ", join(", ", @sagittal_slices), "\n";
+print " Max slices: $max_slices \n";
+print "\n ----------------------------------\n";
+
+foreach(@sagittal_slices){
+
+  do_cmd('mincpik',
+	 '-sagittal',
+	 '-auto_range',
+	 '-slice', $_ ,
+	 $input_t1, 
+	 "${tmpdir}/subcort_t1_${_}_sagittal.png");
+
+  do_cmd('mincpik',
+	 '-sagittal', 
+	 "-lookup", "-discrete -lookup_table labels_colors.map",
+	 "-image_range", "0","114",
+	 '-slice', $_ ,
+	 "$labels", 
+	 "${tmpdir}/subcort_seg_t1_${_}_sagittal.png");
+
+  do_cmd('composite',
+   #"-dissolve", $opt{dissolve}, 
+   "-gravity", "south", "-tile",
+	 "${tmpdir}/subcort_seg_t1_${_}_sagittal.png",
+	 "${tmpdir}/subcort_t1_${_}_sagittal.png",
+	 "${tmpdir}/subcort_seg_t1_${_}_sagittal.png",
+	 "${tmpdir}/subcort_overlay_t1_${_}_sagittal.png");
+
+  push(@montage_images, "${tmpdir}/subcort_t1_${_}_sagittal.png") if $opt{show_t1};
+  push(@montage_images, "${tmpdir}/subcort_overlay_t1_${_}_sagittal.png");
+}
+
+for (my $i = 1; $i <= $max_slices - scalar(@sagittal_slices); $i += 1) {
+  push(@montage_images, "null:") if $opt{show_t1};
+  push(@montage_images, "null:");
+}
+
+
+print @montage_images;
+
+
+if ($max_slices > 16){
+  do_cmd('montage',
+         '-geometry','200x200', '-tile', $max_slices * (2*$opt{show_t1}) . '5x4',
+         '-background', 'black',
+         @montage_images,
+         $outfile);
+} else {
+  do_cmd('montage',
+         '-geometry','200x200', '-tile', $max_slices * (2*$opt{show_t1}) . '4x4',
+         '-background', 'black',
+         @montage_images,
+         $outfile);
+}
+
+
+sub  do_cmd{
+  print "@_ \n";
+  system(@_) == 0 or die;
+}
