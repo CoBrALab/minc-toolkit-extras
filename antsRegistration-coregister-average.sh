@@ -5,6 +5,8 @@ output=$1
 tmpdir=$(mktemp -d)
 shift 1
 
+# We use a robust average to start because if co-registration is bad for
+# one image it throws off everything
 mincbigaverage --robust --sdfile $tmpdir/sd0.mnc "$@" $tmpdir/average0.mnc
 target=$tmpdir/average0.mnc
 
