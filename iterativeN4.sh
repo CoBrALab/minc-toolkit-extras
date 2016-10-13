@@ -14,6 +14,16 @@ CSFPRIOR="${QUARANTINE_PATH}/resources/mni_icbm152_nlin_sym_09c_minc2/mni_icbm15
 
 tmpdir=$(mktemp -d)
 
+#Calculate shrink values
+#Target is 4mm steps for first round, 2mm for second
+dx=$(mincinfo -attvalue xspace:step $1)
+dy=$(mincinfo -attvalue yspace:step $1)
+dz=$(mincinfo -attvalue zspace:step $1)
+
+shrinkround1=$(python -c "import math; print int(math.floor(4 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0)))")
+shrinkround2=$(python -c "import math; print int(math.floor(2 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0)))")
+
+
 #Generate a whole-image mask
 minccalc -clobber -unsigned -byte -expression 'A[0]?1:1' $1 $tmpdir/initmask.mnc
 
@@ -26,7 +36,7 @@ ImageMath 3 $tmpdir/truncnorm0.mnc Normalize $tmpdir/trunc.mnc
 ImageMath 3 $tmpdir/trunc.mnc m $tmpdir/truncnorm0.mnc 1000
 
 #Correct entire image domain
-N4BiasFieldCorrection -d 3 -s 4 --verbose -x $tmpdir/initmask.mnc \
+N4BiasFieldCorrection -d 3 -s $shrinkround1 --verbose -x $tmpdir/initmask.mnc \
 -b [200] -c [300x300x300x300,0.0] --histogram-sharpening [0.05,0.01,200] -i $tmpdir/trunc.mnc -o $tmpdir/precorrect.mnc
 
 #Normalize and rescale intensity
@@ -58,7 +68,7 @@ mincmath -clobber -or $tmpdir/mnimask${n}.mnc $tmpdir/bmask${n}.mnc $tmpdir/mask
 mincmorph -3D26 -successive DD $tmpdir/mask${n}.mnc $tmpdir/mask${n}_D.mnc -clobber
 
 #Do first round of masked bias field correction, use brain mask as weight
-N4BiasFieldCorrection -d 3 -s 4 --verbose -w $tmpdir/mask${n}_D.mnc -x $tmpdir/initmask.mnc \
+N4BiasFieldCorrection -d 3 -s $shrinkround1 --verbose -w $tmpdir/mask${n}_D.mnc -x $tmpdir/initmask.mnc \
 -b [200] -c [300x300x300x300,0.0] --histogram-sharpening [0.05,0.01,200] -i $tmpdir/trunc.mnc -o $tmpdir/round${n}.mnc
 
 #Normalize and rescale intensity
@@ -76,7 +86,7 @@ bestlinreg_g -nmi -lsq12 -target_mask ${REGISTRATIONBRAINMASK} $tmpdir/denoise${
 antsRegistration --dimensionality 3 --float 0 --collapse-output-transforms 1 -a 1 --verbose --minc \
   --output $tmpdir/nonlin${n} \
   --initial-moving-transform $tmpdir/0_${n}.xfm \
-  --transform BSplineSyN[0.1,26,0,3] --metric MI[$tmpdir/denoise${n}.mnc,${REGISTRATIONMODEL},1,32] --convergence [100x70x50x0,1e-6,10] --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox
+  --transform SyN[0.1,3,0] --metric MI[$tmpdir/denoise${n}.mnc,${REGISTRATIONMODEL},1,32] --convergence [100x70x50,1e-6,10] --shrink-factors 8x4x2 --smoothing-sigmas 3x2x1mm
 
 #Intensity normalize
 volume_pol --order 1 --min 0 --max 100 --noclamp $tmpdir/mni${n}.mnc ${REGISTRATIONMODEL} --source_mask $tmpdir/beastmask$((${n} - 1)).mnc --target_mask ${REGISTRATIONBRAINMASK} --clobber $tmpdir/mni${n}.norm.mnc
@@ -109,7 +119,7 @@ Atropos -d 3 -x $tmpdir/mask${n}_D.mnc -c [5,0.0] -a $tmpdir/round$((${n} - 1)).
 ImageMath 3 $tmpdir/weight${n}.mnc PureTissueN4WeightMask $tmpdir/round${n}SegmentationPosteriors2.mnc $tmpdir/round${n}SegmentationPosteriors3.mnc
 
 #Perform bias field correction with weight mask
-N4BiasFieldCorrection -d 3 -s 2 --verbose -w $tmpdir/weight${n}.mnc -x $tmpdir/initmask.mnc \
+N4BiasFieldCorrection -d 3 -s $shrinkround2 --verbose -w $tmpdir/weight${n}.mnc -x $tmpdir/initmask.mnc \
 -b [200] -c [300x300x300x300,0.0] --histogram-sharpening [0.05,0.01,200] -i $tmpdir/trunc.mnc -o $tmpdir/round${n}.mnc
 
 #Normalize intensity
@@ -139,7 +149,7 @@ do
 
   ImageMath 3 $tmpdir/weight${n}.mnc PureTissueN4WeightMask $tmpdir/round${n}SegmentationPosteriors2.mnc $tmpdir/round${n}SegmentationPosteriors3.mnc
 
-  N4BiasFieldCorrection -d 3 -s 2 --verbose -w $tmpdir/weight${n}.mnc -x $tmpdir/initmask.mnc \
+  N4BiasFieldCorrection -d 3 -s $shrinkround2 --verbose -w $tmpdir/weight${n}.mnc -x $tmpdir/initmask.mnc \
   -b [200] -c [300x300x300x300,0.0] --histogram-sharpening [0.05,0.01,200] -i $tmpdir/trunc.mnc -o $tmpdir/round${n}.mnc
 
   ImageMath 3 $tmpdir/norm${n}.mnc Normalize $tmpdir/round${n}.mnc
@@ -147,7 +157,7 @@ do
 
 done
 
-mincstats -quiet -histogram $(dirname $2)/$(basename $2 .mnc).hist -mask $tmpdir/mask3_D.mnc -mask_binvalue 1 $tmpdir/round3.mnc
+#mincstats -quiet -histogram $(dirname $2)/$(basename $2 .mnc).hist -mask $tmpdir/mask3_D.mnc -mask_binvalue 1 $tmpdir/round3.mnc
 
 cp -f $tmpdir/round3.mnc $2
 rm -rf $tmpdir
