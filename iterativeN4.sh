@@ -56,7 +56,7 @@ bestlinreg_g -nmi -lsq12 -target_mask ${REGISTRATIONBRAINMASK} $tmpdir/denoise${
 volume_pol --order 1 --min 0 --max 100 --noclamp $tmpdir/mni${n}.mnc ${REGISTRATIONMODEL} --source_mask $tmpdir/beastmask0.mnc --target_mask ${REGISTRATIONBRAINMASK} --clobber $tmpdir/mni${n}.norm.mnc
 
 #Run a quick beast to get a brain mask
-mincbeast -clobber -verbose -fill -median -same_res -flip -conf /opt/quarantine/resources/BEaST_libraries/combined/default.4mm.conf /opt/quarantine/resources/BEaST_libraries/combined $tmpdir/mni${n}.norm.mnc $tmpdir/beastmask${n}.mnc
+mincbeast -clobber -verbose -fill -median -same_res -flip -conf ${BEASTLIBRARY_DIR}/default.4mm.conf ${BEASTLIBRARY_DIR} $tmpdir/mni${n}.norm.mnc $tmpdir/beastmask${n}.mnc
 
 #Resample beast mask and MNI mask to native space
 itk_resample --clobber --labels --like $tmpdir/denoise${n}.mnc --invert_transform --transform $tmpdir/0_${n}.xfm ${REGISTRATIONBRAINMASK} $tmpdir/mnimask${n}.mnc
@@ -92,7 +92,7 @@ antsRegistration --dimensionality 3 --float 0 --collapse-output-transforms 1 -a 
 volume_pol --order 1 --min 0 --max 100 --noclamp $tmpdir/mni${n}.mnc ${REGISTRATIONMODEL} --source_mask $tmpdir/beastmask$((${n} - 1)).mnc --target_mask ${REGISTRATIONBRAINMASK} --clobber $tmpdir/mni${n}.norm.mnc
 
 #Quick Beast
-mincbeast -clobber -verbose -fill -median -same_res -flip -conf /opt/quarantine/resources/BEaST_libraries/combined/default.4mm.conf /opt/quarantine/resources/BEaST_libraries/combined $tmpdir/mni${n}.norm.mnc $tmpdir/beastmask${n}.mnc
+mincbeast -clobber -verbose -fill -median -same_res -flip -conf ${BEASTLIBRARY_DIR}/default.4mm.conf ${BEASTLIBRARY_DIR} $tmpdir/mni${n}.norm.mnc $tmpdir/beastmask${n}.mnc
 
 #Resample and join brain masks
 itk_resample --clobber --labels --like $tmpdir/denoise${n}.mnc --invert_transform --transform $tmpdir/0_${n}.xfm ${REGISTRATIONBRAINMASK} $tmpdir/mnimask${n}.mnc
@@ -136,7 +136,7 @@ do
 
   volume_pol --order 1 --min 0 --max 100 --noclamp $tmpdir/mni${n}.mnc ${REGISTRATIONMODEL} --source_mask $tmpdir/beastmask$((${n} - 1)).mnc --target_mask ${REGISTRATIONBRAINMASK} --clobber $tmpdir/mni${n}.norm.mnc
 
-  mincbeast -clobber -verbose -fill -median -same_res -flip -conf /opt/quarantine/resources/BEaST_libraries/combined/default.4mm.conf /opt/quarantine/resources/BEaST_libraries/combined $tmpdir/mni${n}.norm.mnc $tmpdir/beastmask${n}.mnc
+  mincbeast -clobber -verbose -fill -median -same_res -flip -conf ${BEASTLIBRARY_DIR}/default.4mm.conf ${BEASTLIBRARY_DIR} $tmpdir/mni${n}.norm.mnc $tmpdir/beastmask${n}.mnc
 
   itk_resample --clobber --labels --like $tmpdir/denoise${n}.mnc --invert_transform --transform $tmpdir/0_${n}.xfm ${REGISTRATIONBRAINMASK} $tmpdir/mnimask${n}.mnc
   itk_resample --clobber --labels --like $tmpdir/denoise${n}.mnc --invert_transform --transform $tmpdir/0_${n}.xfm $tmpdir/beastmask${n}.mnc $tmpdir/bmask${n}.mnc
