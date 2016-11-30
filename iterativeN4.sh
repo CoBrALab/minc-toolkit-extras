@@ -20,8 +20,8 @@ dx=$(mincinfo -attvalue xspace:step $1)
 dy=$(mincinfo -attvalue yspace:step $1)
 dz=$(mincinfo -attvalue zspace:step $1)
 
-shrinkround1=$(python -c "import math; print int(math.ceil(4 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0)))")
-shrinkround2=$(python -c "import math; print int(math.ceil(2 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0)))")
+shrinkround1=$(python -c "import math; print max(4,int(math.ceil(4 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0))))")
+shrinkround2=$(python -c "import math; print max(2,int(math.ceil(2 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0))))")
 
 
 #Generate a whole-image mask
