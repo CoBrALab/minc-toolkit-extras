@@ -23,6 +23,7 @@ dz=$(mincinfo -attvalue zspace:step $1)
 shrinkround1=$(python -c "import math; print max(4,int(math.ceil(4 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0))))")
 shrinkround2=$(python -c "import math; print max(2,int(math.ceil(2 / ( ( abs($dx) + abs($dy) + abs($dz) ) / 3.0))))")
 
+maxval=$(mincstats -max -quiet $1)
 
 #Generate a whole-image mask
 minccalc -clobber -unsigned -byte -expression 'A[0]?1:1' $1 $tmpdir/initmask.mnc
@@ -33,7 +34,7 @@ cp ${REGISTRATIONBRAINMASK} $tmpdir/beastmask0.mnc
 #Very lightly truncate image intensity and re-normalize
 ImageMath 3 $tmpdir/trunc.mnc TruncateImageIntensity $1 0.025 0.995 256
 ImageMath 3 $tmpdir/truncnorm0.mnc Normalize $tmpdir/trunc.mnc
-ImageMath 3 $tmpdir/trunc.mnc m $tmpdir/truncnorm0.mnc 1000
+ImageMath 3 $tmpdir/trunc.mnc m $tmpdir/truncnorm0.mnc ${maxval}
 
 #Correct entire image domain
 N4BiasFieldCorrection -d 3 -s $shrinkround1 --verbose -x $tmpdir/initmask.mnc \
@@ -41,7 +42,7 @@ N4BiasFieldCorrection -d 3 -s $shrinkround1 --verbose -x $tmpdir/initmask.mnc \
 
 #Normalize and rescale intensity
 ImageMath 3 $tmpdir/norm0.mnc Normalize $tmpdir/precorrect.mnc
-ImageMath 3 $tmpdir/precorrect.mnc m $tmpdir/norm0.mnc 1000
+ImageMath 3 $tmpdir/precorrect.mnc m $tmpdir/norm0.mnc ${maxval}
 
 #First iteration
 n=0
@@ -73,7 +74,7 @@ N4BiasFieldCorrection -d 3 -s $shrinkround1 --verbose -w $tmpdir/mask${n}_D.mnc 
 
 #Normalize and rescale intensity
 ImageMath 3 $tmpdir/norm${n}.mnc Normalize $tmpdir/round${n}.mnc
-ImageMath 3 $tmpdir/round${n}.mnc m $tmpdir/norm${n}.mnc 1000
+ImageMath 3 $tmpdir/round${n}.mnc m $tmpdir/norm${n}.mnc ${maxval}
 
 n=1
 
@@ -124,7 +125,7 @@ N4BiasFieldCorrection -d 3 -s $shrinkround2 --verbose -w $tmpdir/weight${n}.mnc 
 
 #Normalize intensity
 ImageMath 3 $tmpdir/norm${n}.mnc Normalize $tmpdir/round${n}.mnc
-ImageMath 3 $tmpdir/round${n}.mnc m $tmpdir/norm${n}.mnc 1000
+ImageMath 3 $tmpdir/round${n}.mnc m $tmpdir/norm${n}.mnc ${maxval}
 
 #Repeat until happy
 for (( n = 2; n <= 3; n++ ))
@@ -153,7 +154,7 @@ do
   -b [200] -c [300x300x300x300,0.0] --histogram-sharpening [0.05,0.01,200] -i $tmpdir/trunc.mnc -o $tmpdir/round${n}.mnc
 
   ImageMath 3 $tmpdir/norm${n}.mnc Normalize $tmpdir/round${n}.mnc
-  ImageMath 3 $tmpdir/round${n}.mnc m $tmpdir/norm${n}.mnc 1000
+  ImageMath 3 $tmpdir/round${n}.mnc m $tmpdir/norm${n}.mnc ${maxval}
 
 done
 
