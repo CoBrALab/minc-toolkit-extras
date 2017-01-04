@@ -127,7 +127,6 @@ rm -f $tmpdir/nonlin*.xfm $tmpdir/nonlin*.mnc
 
 #Combine GM and WM probably images into a N4 mask,
 ImageMath 3 $tmpdir/weight${n}.mnc PureTissueN4WeightMask $tmpdir/round${n}SegmentationPosteriors2.mnc $tmpdir/round${n}SegmentationPosteriors3.mnc
-rm -f
 
 #Perform bias field correction with weight mask
 N4BiasFieldCorrection -d 3 -s $shrinkround2 --verbose -w $tmpdir/weight${n}.mnc -x $tmpdir/initmask.mnc \
