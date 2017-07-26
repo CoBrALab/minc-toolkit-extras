@@ -8,7 +8,12 @@ if (i==2) {g=$1;h=$2;I=$3;}
 i++; }
 END {
 det=a*e*I+b*f*g+c*d*h-a*f*h-b*d*I-c*e*g;
-printf("%f\n",1/det);}
+printf("%f\n",det);}
 '
 
-sed -e '1,/Linear_Transform =/d' $1 | awk -f<(echo "$AWKCMD")
+echo subject,ICV
+for file in $@
+do
+
+echo -n $file, && sed -e '1,/Linear_Transform =/d' $file | awk -f<(echo "$AWKCMD")
+done
