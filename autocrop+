@@ -1,0 +1,1211 @@
+#! /usr/bin/perl
+#
+# autocrop - a program for extracting and manipulating the bounds of a
+# MINC volume, with the capability to output parameters for mincresample
+# or mincreshape, or a whole new (cropped) MINC volume.
+#
+# --------------------------------------------------------------------
+# Copyright (c) 1994-96 Greg Ward, McConnell Brain Imaging Centre,
+# Montreal Neurological Institute, McGill University.  Permission to
+# use, copy, modify, and distribute this software and its
+# documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright notice appear in all copies.  The
+# author and McGill University make no representations about the
+# suitability of this software for any purpose.  It is provided "as
+# is" without express or implied warranty.
+#
+# Note that the programs mincinfo, mincreshape, and mincresample are
+# written & copyrighted by Peter Neelin, McConnell Brain Imaging
+# Centre, with the same copyright as above.
+# --------------------------------------------------------------------
+
+
+# By Greg Ward 94/9/22
+
+# $Id: autocrop.in,v 1.11 2007/12/10 23:46:57 rotor Exp $
+
+use warnings "all";
+
+use MNI::Startup qw(nocputimes);
+use MNI::Spawn;
+use MNI::FileUtilities qw( check_output_dirs );
+use MNI::PathUtilities qw( split_path );
+use MNI::MincUtilities qw( update_history volume_params get_dimension_order 
+                           compute_reshape_args compute_resample_args);
+use MNI::NumericUtilities qw( round labs );
+use Getopt::Tabular;                    # import just GetOptions
+
+
+&SetGlobals;
+&ParseArgs ();
+
+
+&check_output_dirs ($TmpDir);
+
+# Read the volume parameters (start and step is all we're really interested in)
+
+&volume_params ($InputVolume, \@oldstart, \@oldstep);
+
+
+# If the user picked step values, check to see if they're different
+# (neglecting sign) from the input volume's current steps.  If they
+# are different, set $Action to resample; if not, set it to reshape.
+# (If they already picked reshape and the steps changed, then die.)
+# Otherwise, the user didn't pick step values -- so we just use the
+# current ones.
+
+if (@Step)                        # user set them on command line
+{
+   my (@absstep) = &labs (@Step);
+   my (@absoldstep) = &labs (@oldstep);
+   my ($steps_changed) = ! &comp_arrays (\@absstep, \@absoldstep);
+
+   if (! $Action)                # $Action not already set - we can pick it
+   {
+      $Action = ($steps_changed) ? "resample" : "reshape";
+   }
+   else
+   {
+      die "Can't use mincreshape if the steps are changed\n"
+         if ($steps_changed && $Action eq "reshape");
+   }
+}
+else                                # steps aren't already decided on
+{
+   @Step = @oldstep;
+   $Action = "reshape" unless defined $Action;
+}
+
+
+# Get the initial bounds that we will use.  These either come from a
+# MINC file (including possibly the input volume), a tag file, or
+# a predefined sampling of Talairach space.  They will be put in 
+# a tag file for later retrieval.
+
+$foreign_tag = &GetBounds ($Talairach, $BoundsFile,
+                           $BBoxFile, $BBoxThreshold);
+
+
+# Apply the bounds transformation to get the bounds into the native
+# space of our input volume.  This will give us a transformed tag
+# file that specifies the native bounds.
+
+if (defined $BoundsTransform)
+{
+   $native_tag = "${TmpDir}/native.tag";
+   &TransformBounds ($foreign_tag, $native_tag,
+                     $BoundsTransform, $InvertTransform);
+}
+else
+{
+   $native_tag = $foreign_tag;
+}
+
+
+# Read in the native-bounds tag file as start/extent pairs.  Then tweak
+# the start/extent pairs to correctly reflect the actual step that 
+# will be used.  (Ie. if the step is negative, the extent must be negative
+# and the start must be the high end of each dimension.  Otherwise, the
+# extent must be positive and the start the low end of the dimension.)
+
+&GetTagBounds ($native_tag, \@oldstep, \@start, \@extent);
+&FixBounds (\@start, \@extent, \@Step);
+
+
+# Apply any bounds modifiers, namely extensions and expansions.
+
+&ModifyBounds (\@start, \@Step, \@extent, \@ModParams);
+
+
+# And, finally, determine the appropriate parameters for mincresample
+# or mincreshape (whatever was decided on above)
+
+if ($Action eq "resample")
+{
+   $params = join(' ', &compute_resample_args (\@start, \@extent, \@Step));
+   if ($Crop)
+   {
+      &Spawn ("$MincResample $InputVolume $CropVolume $params");
+      &update_history ($CropVolume, 1);
+   }
+}
+elsif ($Action eq "reshape")
+{
+   my $dim_order = (&get_dimension_order ($InputVolume))[0];
+   $params = join(' ', &compute_reshape_args ($dim_order, \@oldstart, \@oldstep,
+                                      \@start, \@extent, \@Step));
+   if ($Crop)
+   {
+      &Spawn ("$MincReshape $InputVolume $CropVolume $params");
+      &update_history ($CropVolume, 1);
+   }
+}
+else
+{
+   die "INTERNAL ERROR! \$Action not defined";
+}
+
+if ($OutputParams)
+{
+   print $params;
+   print "\n" if -t STDOUT;
+}
+
+
+
+
+# -------------------------------------------
+#   High-level subroutines
+#      &SetGlobals
+#      &ParseArgs
+#      &GetBounds
+# -------------------------------------------
+
+
+sub SetGlobals
+{
+   MNI::Spawn::SetOptions (err_action => 'fatal');
+
+   $MincResample = 'mincresample';
+   $MincReshape = 'mincreshape';
+   RegisterPrograms([$MincResample, $MincReshape]) or &Fatal();
+   
+   $Action = undef;             # "resample" or "reshape" (depending on
+                                # circumstances)
+   $Crop = 1;                   # actually perform the crop?
+   $OutputParams = 0;           # print minc{resample,reshape} args?
+   @ModParams = ();             # sequence of extend, expand, keep, ... ?
+
+   $Version = '0.99.6';
+   $LongVersion = 'Package mni_autoreg 0.99.6, compiled by @nissl (x86_64-unknown-linux-gnu) on Wed Jan  4 18:22:47 EST 2012';
+   $Usage = <<USAGE;
+Usage: $ProgramName [options] volume crop_volume
+       $ProgramName -help for details
+
+USAGE
+
+   $Help = <<HELP;
+$ProgramName is a big, hairy program with lots of options and far
+too much flexibility.  See the man page for the full story.
+HELP
+
+}
+
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &ParseArgs
+#@INPUT      : 
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Sets up argument table for parsing via Getopt::Tabular module,
+#              and does it.  Checks leftover arguments for validity, and
+#              stores them in the appropriate place(s).  
+#@METHOD     : 
+#@GLOBALS    : @ARGV [not changed]
+#              a whole bunch of others
+#@CALLS      : 
+#@CREATED    : October 1996, to replace the old &ParseArgs routine
+#@MODIFIED   : 
+#-----------------------------------------------------------------------------
+sub ParseArgs
+{
+   my (@arg_table);
+
+   my $set_action = sub
+   {
+      my ($arg) = @_;
+
+      if ($arg =~ /^-(resample|reshape)$/)
+      {
+         $Action = $1;
+         $Crop = 1;
+         $OutputParams = 0;
+      }
+      elsif ($arg =~ /^-no(resample|reshape)/)
+      {
+         $Action = $1;
+         $Crop = 0;
+         $OutputParams = 1;
+      }
+      else
+      {
+         die "Bogus action: $arg";
+      }
+
+      return 1;
+   };
+
+
+   # Variables used by $get_modifier; we define them here to avoid 
+   # defining them on every call to $get_modifier
+
+   my $mod_param_re = '(step|extend|expand)';
+   my $float_re = &Getopt::Tabular::GetPattern ('float');
+   my $expand_re = "($float_re)(%|mm|v)?";
+   my %mod_value_re = ('step'   => "${float_re}",
+                       'expand' => $expand_re,
+                       'extend' => "($expand_re)?,($expand_re)?");
+   my %complaint = 
+      ('step'   => 'a real number',
+       'expand' =>
+       'a real number followed by (optional) %, mm [default], or v',
+       'extend' => 
+       'a comma-separated pair of real numbers, each followed by ' .
+       '(optional) %, mm [default], or v'
+      );
+
+   
+   my $get_modifier = sub
+   {
+      my ($arg, $args) = @_;
+      my ($param, $value, @values);
+
+      if ($arg =~ /^-iso$mod_param_re$/xo)
+      {
+         $param = $1;
+         $value = shift @$args;
+         die "Invalid argument \"$value\" for -iso$param: must be " .
+            $complaint{$param} . "\n"
+               unless (defined $value
+                       && $value =~ /^$mod_value_re{$param}$/x);
+         @values = ($value, $value, $value);
+      }
+      elsif ($arg =~ /^-$mod_param_re$/xo)
+      {
+         $param = $1;
+         for (0 .. 2)
+         {
+            $value = shift @$args;
+            die "Invalid argument \"$value\" for -iso$param: must be " .
+               $complaint{$param} . "\n"
+                  unless (defined $value
+                          && $value =~ /^$mod_value_re{$param}$/x);
+            push (@values, $value);
+         }
+      }
+      else
+      {
+         warn "Unknown bounds modifier $arg (this should not happen!)";
+         return 0;
+      }
+
+      push (@ModParams, [$param, @values]);
+      return 1;
+   };
+
+
+   my $get_isostep = sub
+   {
+      my ($arg, $args) = @_;
+
+      die "get_isostep: unexpected \$arg" unless $arg eq '-isostep';
+      my $isostep = shift @$args;
+      unless ($isostep =~ /$float_re/x)
+      {
+         warn "-isostep option must be followed by a floating-point number\n";
+         return 0;
+      }
+      @Step = ($isostep, $isostep, $isostep);
+      return 1;
+   };
+
+
+   @arg_table = 
+      (@DefaultArgs,
+      
+       ["-version", "call", undef, \&print_version,
+        "print version and quit"],
+
+       ["Action-to-take options", "section"],
+       ["-resample", "call", undef, $set_action,
+        "force $ProgramName to use mincresample, and also ensure that " .
+        "resampling is actually performed"],
+       ["-noresample", "call", undef, $set_action,
+        "don't actually do anything, but compute parameters for mincresample"],
+       ["-reshape", "call", undef, $set_action,
+        "force $ProgramName to use mincreshape if possible, and also ensure " .
+        "that reshaping is actually performed"],
+       ["-noreshape", "call", undef, $set_action,
+        "don't actually do anything, but compute parameters for mincreshape"],
+       ["-params", "boolean", 0, \$OutputParams,
+        "print out parameters to run mincresample/mincreshape " .
+        "[default: on if not running them, -noparams otherwise]"],
+
+       ["Bounds specification and transformation options", "section"],
+       ["-from", "string", 1, \$BoundsFile,
+        "take the bounds from <file> (either a tag or MINC file) " .
+        "[default: input volume]", "<file>"],
+       ["-bbox", "string", 1, \$BBoxFile,
+        "compute the bounding box of the data in <file>, and use that for " .
+        "the bounds", "<file>"],
+       ["-bbox_threshold", "float", 1, \$BBoxThreshold,
+        "threshold value to use when running mincbbox [default: 0]"],
+       ["-talairach", "boolean", 0, \$Talairach,
+        "take the bounds from the (approximate) extent of the brain in " .
+        "Talairach space"],
+
+       ["Bounds transformation options", "section"],
+       ["-transform", "string", 1, \$BoundsTransform,
+        "apply <xfm> to the bounds to get them into the space of the " .
+        "input volume", "<xfm>"],
+       ["-invert", "boolean", 0, \$InvertTransform,
+        "invert the <xfm> supplied with -transform before applying it"],
+
+       ["Bounds modification options", "section"],
+       ["-expand", "call", undef, $get_modifier,
+        "set the (x,y,z) expansion (increase volume extent symmetrically at " .
+        "each end of an axis) parameters"],
+       ["-isoexpand", "call", undef, $get_modifier,
+        "set the same expansion parameter for all three axes"],
+       ["-extend", "call", undef, $get_modifier,
+        "set the (x,y,z) extension (increase volume extent independently at " .
+        "each end of an axis) parameters"],
+       ["-isoextend", "call", undef, $get_modifier,
+        "set the same extension parameter for all three axes"],
+
+       ["Resampling options", "section"],
+       ["-step", "float", 3, \@Step,
+        "set the x, y, and z step (voxel size) for the output sampling",
+        "<xstep> <ystep> <zstep>"],
+       ["-isostep", "call", undef, $get_isostep,
+        "set the step (same in all three dimensions) for the output sampling"],
+       ["-keep_real_range", "copy", undef, \$Keep,
+        "Supply -keep to mincresample (if used)."],
+       ["-nearest_neighbour", "copy", undef, \$Near,
+        "Supply -near to mincresample (if used)."],
+
+       ["Generic volume output options", "section"],
+       ["-byte", "copy", undef, \$OutputType, ""],
+       ["-short", "copy", undef, \$OutputType, ""],
+       ["-long", "copy", undef, \$OutputType, ""],
+       ["-float", "copy", undef, \$OutputType, ""],
+       ["-double", "copy", undef, \$OutputType, ""],
+       ["-transverse", "copy", undef, \$Orientation, ""],
+       ["-coronal", "copy", undef, \$Orientation, ""],
+       ["-sagittal", "copy", undef, \$Orientation, ""]
+      );
+
+
+        
+   # Right, parse that command line (at last)!
+
+   my @argv;
+   &Getopt::Tabular::SetHelp ($Help, $Usage);
+   &GetOptions (\@arg_table, \@ARGV, \@argv) || exit 1;
+
+
+   # Make sure we have the right number of leftover args (2 if we're 
+   # to do anything, 1 if not), and harvest them to the appropriate
+   # global variables
+
+   $required_args = ($Crop) ? 2 : 1;
+   if (@argv != $required_args)
+   {
+      warn $Usage;
+      $Crop 
+         ? warn "You must supply both an input and output (cropped) volume " .
+                "when cropping data\n"
+         : warn "You must supply just an input volume when not cropping\n";
+      die "Incorrect number of arguments\n";
+   }
+   ($InputVolume, $CropVolume) = @argv;
+
+
+   # Further processing of command-line variables (defaulting and whatnot)
+
+   my $how_many = grep ($_, 
+                        defined $BoundsFile,
+                        defined $BBoxFile,
+                        $Talairach);
+   die "You may only supply one of -from, -bbox, and -talairach\n"
+      unless $how_many <= 1;
+   $BoundsFile = $InputVolume 
+      unless (defined $BoundsFile || defined $BBoxFile || $Talairach);
+
+   push (@MincOptions, '-quiet') if (! $Verbose);
+   push (@MincOptions, '-clobber') if ($Clobber);
+   push (@MincOptions, $OutputType) if defined $OutputType;
+   push (@MincOptions, $Orientation) if defined $Orientation;
+   $MincReshape .= " " . join (" ", @MincOptions);
+   push (@MincOptions, '-keep_real_range') if defined $Keep;
+   push (@MincOptions, '-nearest_neighbour') if defined $Near;
+   $MincResample .= " " . join (" ", @MincOptions);
+}
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &GetBounds
+#@INPUT      : $bounds_file - name of file (either .tag or .mnc) from which
+#                             to extract the bounds of interest
+#              $talairach   - flag: if 1, ignore $bounds_file, and just use
+#                             a volume covering the whole brain in 
+#                             Talairach space
+#@OUTPUT     : 
+#@RETURNS    : $tagfile     - name of a created tag file that now holds the
+#                             bounds of interest, whether they were extracted
+#                             from a tag file, a MINC file, or taken from
+#                             Talairach space
+#@DESCRIPTION: Creates a tag file representing the user's desired volume 
+#              bounds.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : (mists of time)
+#@MODIFIED   : 
+#-----------------------------------------------------------------------------
+sub GetBounds
+{
+   my ($talairach, $bounds_file, $bbox_file, $bbox_threshold) = @_;
+   my ($tagfile);
+
+   if ($talairach)
+   {
+      $tagfile = "$TmpDir/talairach_bound.tag";
+      &GetTalairachBounds ($tagfile);
+   }
+   elsif ($bounds_file)
+   {
+      if ($bounds_file =~ /\.tag/)
+      {
+         $tagfile = $bounds_file;
+      }
+      elsif ($bounds_file =~ /([^\/]+)\.mnc/)
+      {
+         $tagfile = $TmpDir . "/" . $1 . "_bounds.tag";
+         &GetVolumeBounds ($bounds_file, $tagfile);
+      }
+      else
+      {
+         &Fatal ("Bounds file $bounds_file must be either a tag file or a MINC volume");
+      }
+   }
+   elsif ($bbox_file)
+   {
+      my $basename = (&split_path ($bbox_file))[1];
+      $tagfile = "$TmpDir/${basename}_bbox.tag";
+      &GetBBoxBounds ($bbox_file, $bbox_threshold, $tagfile);
+   }
+   else
+   {
+      &Fatal ("You must specify a source for your input bounds " .
+              "(using either -from, -bbox or -talairach)");
+   }
+   return ($tagfile);
+}
+
+
+
+
+# --------------------------------------------------------------
+#   Medium-level subroutines for manipulating volume bounds:
+#      &GetVolumeBounds
+#      &GetTalairachBounds
+#      &TransformBounds
+#      &GetTagBounds
+#      &ModifyBounds
+# --------------------------------------------------------------
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &DimLimitsToBounds
+#@INPUT      : 
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Converts start/stop pairs (three of them) to the set of 
+#              eight points needed to bound the volume.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : 1995/10/05, Greg Ward
+#@MODIFIED   : 1996/10/21, GW: simplified and Perl5ified
+#-----------------------------------------------------------------------------
+sub DimLimitsToBounds
+{
+   my ($start, $stop, $xcoords, $ycoords, $zcoords) = @_;
+   my ($points);
+
+   # Compute the 8 points that give us the bounds of the volume.
+
+   $points = [[$start->[0], $start->[1], $start->[2]],
+              [$start->[0], $stop ->[1], $start->[2]],
+              [$start->[0], $start->[1], $stop ->[2]],
+              [$start->[0], $stop ->[1], $stop ->[2]],
+              [$stop ->[0], $start->[1], $start->[2]],
+              [$stop ->[0], $stop ->[1], $start->[2]],
+              [$stop ->[0], $start->[1], $stop ->[2]],
+              [$stop ->[0], $stop ->[1], $stop ->[2]]];
+
+   for $i (0 .. 7)
+   {
+      $xcoords->[$i] = $points->[$i][0];
+      $ycoords->[$i] = $points->[$i][1];
+      $zcoords->[$i] = $points->[$i][2];
+   }
+}
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : GetVolumeBounds
+#@INPUT      : $volume - name of MINC file to get bounds of
+#              $tagfile - name of tag file to write
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Reads the start/step/lengths of the three spatial dimensions
+#              from a MINC file, computes the bounding tag points based
+#              on them, and outputs a bounding tag file.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : &WriteTagFile, &DimLimitsToBounds
+#@CREATED    : 95/04/21, Greg Ward (from similar routine in regsimu script)
+#@MODIFIED   : 95/05/22, GW: changed to output the two-point tag format
+#              95/08/04, GW: simplified to handle negative steps and extents
+#              95/10/02, GW: changed so the order of (start,stop) is always
+#                            (pos,neg), ie. so the tag file will go from
+#                            left-inf-pos to right-sup-ant
+#              95/10/05, GW: changed to output the 8-point format
+#                            by calling &DimLimitsToBounds
+#              96/10/21, GW: changed to use Perl5 ref's and my
+#-----------------------------------------------------------------------------
+sub GetVolumeBounds
+{
+   my ($volume, $tagfile) = @_;
+   my ($cmd, $diminfo, @diminfo);
+   my (@start, @step, @length, @stop);
+   my (@xcoords, @ycoords, @zcoords);
+
+   
+   # JARGON WATCH
+   #
+   # start  = world coordinate of first sample [in MINC header]
+   # start  = lowest world coordinate in a dimension [in autocrop]
+   # step   = amount of world space covered by one sample in a dimension
+   #          (negative step => "backwards" sampling)
+   # length = number of samples in a dimension
+   # stop   = highest world coordinate in a dimension (i.e. the coordinate
+   #          of the last voxel, correcting for "backwards" sampling)
+   # extent = amount of world space covered by all samples in the dimension
+   #          (= step * length, including sign!)
+   #
+   # The start coordinate (MINC header sense) is fetched here, and
+   # convered to start (autocrop sense) in the loop below.  (Note 
+   # that for dimensions with positive step, the two starts are the
+   # same.)
+   
+
+   $cmd = "mincinfo $volume -error_string 0 " .
+      "-attval xspace:start -attval xspace:step -dimlen xspace " .
+      "-attval yspace:start -attval yspace:step -dimlen yspace " .
+      "-attval zspace:start -attval zspace:step -dimlen zspace";
+   $diminfo = `$cmd`;
+   die "Error executing mincinfo on $volume\n" if $?;
+   @diminfo = split (/\n/, $diminfo);
+
+   @start = @diminfo[0,3,6];
+   @step = @diminfo[1,4,7];
+   @length = @diminfo[2,5,8];
+
+   print "GetVolumeBounds:\n" if $Debug;
+
+   foreach $i (0, 1, 2)
+   {
+      $stop[$i] = $start[$i] + $step[$i] * ($length[$i] - 1);
+      ($stop[$i],$start[$i]) = ($start[$i],$stop[$i])
+         if ($step[$i] < 0.0);
+
+      if ($Debug)
+      {
+         my $dim = (qw(xspace yspace zspace))[$i];
+         printf "  %s: start=%g, stop=%g\n", $dim, $start[$i], $stop[$i];
+      }
+   }
+
+   &DimLimitsToBounds (\@start, \@stop, \@xcoords, \@ycoords, \@zcoords);
+   &WriteTagFile ($tagfile, "bounds tag file created from volume $volume",
+                  \@xcoords, \@ycoords, \@zcoords) || &Fatal;
+}
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : GetTalairachBounds
+#@INPUT      : $tagfile - name of tag file to write
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Writes the bounds of the brain in Talairach space to
+#              a tag file.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : &WriteTagFile, &DimLimitsToBounds
+#@CREATED    : 95/04/21, Greg Ward
+#@MODIFIED   : 95/05/22, GW: changed to output the two-point tag format
+#              95/10/05, GW: changed to output the 8-point format
+#                            by calling &DimLimitsToBounds
+#              96/10/21, GW: changed to use Perl5 ref's and my
+#-----------------------------------------------------------------------------
+sub GetTalairachBounds
+{
+   my ($tagfile) = @_;
+
+   @start = (-80, -120, -80);
+   @stop = (80, 90, 95);
+
+   &DimLimitsToBounds (\@start, \@stop, \@xcoords, \@ycoords, \@zcoords);
+   &WriteTagFile ($tagfile, "standard bounds of brain in Talairach space",
+                  \@xcoords, \@ycoords, \@zcoords) || &Fatal;
+}
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : GetBBoxBounds
+#@INPUT      : $volume
+#              $threshold
+#@OUTPUT     : $tagfile (caller supplies filename)
+#@RETURNS    : 
+#@DESCRIPTION: Creates a volume-bounds tag file by computing the bounding
+#              box of the data in a MINC volume (with mincbbox).
+#@METHOD     : 
+#@GLOBALS    : TmpDir
+#@CALLERS    : 
+#@CALLS      : &WriteTagFile, &DimLimitsToBounds
+#@CREATED    : 1997/09/09, GPW
+#@MODIFIED   : 
+#-----------------------------------------------------------------------------
+sub GetBBoxBounds
+{
+   my ($volume, $threshold, $tagfile) = @_;
+   my ($base, $bbox_file, $cmd);
+   my (@output, @start, @extent, @stop);
+   my (@xcoords, @ycoords, @zcoords);
+
+   $threshold ||= 0;                    # bzzt! should be volume min 
+                                        # (but mincbbox is also wrong)
+   $base = (&split_path ($volume))[1];
+   $bbox_file = "$TmpDir/${base}.bbox";
+
+   @output = split(/\n/, `mincbbox -threshold $threshold -two_lines $volume`);
+   @start = split (' ', $output[-2]);
+   @extent = split (' ', $output[-1]);
+   die "urghh! bad mincbbox output" 
+      unless @start == 3 && @extent == 3;
+   @stop = map ($start[$_] +  $extent[$_] - 1, 0 .. $#start);
+
+   &DimLimitsToBounds (\@start, \@stop, \@xcoords, \@ycoords, \@zcoords);
+   &WriteTagFile ($tagfile,
+                  "bounds tag file created from bounding box of $volume",
+                  \@xcoords, \@ycoords, \@zcoords)
+      || &Fatal;
+}
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : TransformBounds
+#@INPUT      : $foreign_tag - bounds tag file in the `original' space
+#              $native_tag  - bounds tag file in the native space of
+#                             the volume we're resampling
+#              $transform   - transform file that takes us from native
+#                             space to foreign space
+#              $invert      - if 1, then $transform actually goes the 
+#                             other way
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Applies the user supplied bounds transformation to the
+#              bounds tag file to generate the native-space bounds tag 
+#              file; if no bounds transformation was supplied, then the 
+#              tag file is simply copied.
+#@METHOD     : 
+#@GLOBALS    : $TmpDir
+#@CALLS      : 
+#@CREATED    : 95/04/21, Greg Ward
+#@MODIFIED   : 96/10/21, GW: reversed the sense of $invert -- formerly,
+#                            supplying -inverse meant "do not invert";
+#                            now, it's sanitized to mean "invert"
+#-----------------------------------------------------------------------------
+sub TransformBounds
+{
+   my ($foreign_tag, $native_tag, $transform, $invert) = @_;
+
+   if (! defined $transform)
+   {
+      link ($foreign_tag, $native_tag);
+      return;
+   }
+
+   if ($invert)                 # WARNING!  Removed a "!" -- reverse the
+   {                            # sense of transformation (GPW 1996/10/21)
+      $temp = $transform;
+      $temp =~ s/^.*\///;
+      $temp = "${TmpDir}/${temp}.inv";
+      &Spawn ("xfminvert $transform $temp");
+      $transform = $temp;
+   }
+
+   &Spawn ("transformtags -vol1 -transform $transform " .
+           "$foreign_tag $native_tag");
+}
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : GetTagBounds
+#@INPUT      : $tagfile - name of tag file that contains the bounds
+#@OUTPUT     : @$start  - x, y, and z start coordinates of the volume bounds
+#              @$extent - x, y, and z extent of the volume bounds
+#@RETURNS    : 
+#@DESCRIPTION: Converts the bounds specified by a tag file into 
+#              start/extent pairs for the three spatial dimensions.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : 95/04/21, Greg Ward (from old code in main program of autocrop)
+#@MODIFIED   : 95/05/22, GW: changed to read the two-point tag format and
+#                            to handle case where any dimension is flipped
+#              95/08/04, GW: simplified to handle negative steps and extents
+#-----------------------------------------------------------------------------
+sub GetTagBounds
+{
+   my ($tagfile, $step, $start, $extent) = @_;
+   my ($numtags, @xcoords, @ycoords, @zcoords);
+
+   $numtags = &ReadTagFile ($tagfile, \@xcoords, \@ycoords, \@zcoords)
+      || &Fatal;
+   &Fatal ("Wrong number of tag points ($numtags) in file $tagfile")
+      unless ($numtags == 8);
+
+   $xmin = &min (@xcoords);
+   $ymin = &min (@ycoords);
+   $zmin = &min (@zcoords);
+
+   $xmax = &max (@xcoords);
+   $ymax = &max (@ycoords);
+   $zmax = &max (@zcoords);
+
+   @$start = ($xmin, $ymin, $zmin);
+   @$extent = ($xmax-$xmin + abs ($step->[0]),
+               $ymax-$ymin + abs ($step->[1]),
+               $zmax-$zmin + abs ($step->[2]));
+
+   if ($Debug)
+   {
+      my ($i, $dim);
+
+      print "GetTagBounds:\n";
+      for $i (0, 1, 2)
+      {
+         my $dim = (qw(xspace yspace zspace))[$i];
+         printf "  %s: start=%g, extent=%g\n", $dim, $start[$i], $extent[$i];
+      }
+   }
+}
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &FixBounds
+#@INPUT      : 
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Updates the @extent and @start arrays so that the
+#              extent of any dimension with negative step is also
+#              negative, and so that the "start" value is swapped with
+#              the "stop" value for such dimensions.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : 95/08/04, Greg Ward
+#@MODIFIED   : 96/10/21, GW: changed to use Perl5 ref's and my
+#-----------------------------------------------------------------------------
+sub FixBounds
+{
+   my ($start, $extent, $step) = @_;
+
+   print "FixBounds:\n" if $Debug;
+
+   foreach $i (0,1,2)
+   {
+      # round `extent' to the next highest `step', but in an absolute sense
+      # (i.e. negative numbers round down, positive numbers round up) --
+      # comparing the `extent' with zero gives us its sign, which
+      # determines the direction of rounding
+
+      $extent->[$i] = round ($extent->[$i], abs ($step->[$i]), $extent->[$i] <=> 0);
+
+      if (($step->[$i] < 0.0 && $extent->[$i] > 0.0) |
+          ($step->[$i] > 0.0 && $extent->[$i] < 0.0))
+      {
+         $start->[$i] += $extent->[$i] - abs($step->[$i]);
+         $extent->[$i] = - $extent->[$i];
+      }
+
+      if ($Debug)
+      {
+         my $dim = (qw(xspace yspace zspace))[$i];
+         printf "  %s: start=%g, extent=%g\n", $dim, $start[$i], $extent[$i];
+      }
+   }
+}
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &convert_modifier
+#@INPUT      : 
+#@OUTPUT     : 
+#@RETURNS    : 
+#@DESCRIPTION: Converts a dimension bounds modifier (currently, that means
+#              either an extension or expansion factor for a single 
+#              dimension) to world coordinates with appropriate sign.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : 95/09/05, Greg Ward (from code in &ModifyBounds)
+#@MODIFIED   : 
+#-----------------------------------------------------------------------------
+sub convert_modifier
+{
+   my ($mod, $extent, $step) = @_;
+   
+   if ($mod =~ /(.+)%$/)
+   {
+      $mod = ($1) / 100 * $extent;
+   }
+   elsif ($mod =~ /(.+)v$/)
+   {
+      $mod = ($1) * $step;
+   }
+   else
+   {
+      $mod =~ s/mm$//;
+      $mod = -$mod if ($step < 0.0);
+   }
+   $mod;
+}
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &ModifyBounds
+#@INPUT      : @$start
+#              @$step
+#              @$extent
+#              @$param_list  list of bounds modifiers; each list element
+#                            is itself a 4-element list with the name
+#                            of the modifier ('expand' or 'extend' so far),
+#                            and the (x,y,z) values of the parameter
+#              @$extension - list of extension factors (volume bounds are 
+#                            extended asymmetrically - extension factor
+#                            can be specified at one or both limits, as
+#                            (eg.) "lo,hi", "lo", or ",hi" (any omitted
+#                            factor defaults to zero).  `lo' refers to the
+#                            extension at the low end (left/posterior/
+#                            inferior) and `hi' to the extension at the high
+#                            end (right/anterior/superior).  
+#@OUTPUT     : 
+#@RETURNS    : nothing; dies on any error
+#@DESCRIPTION: Applies all bounds modification parameters, in the order
+#              they are found in @$param_list (which is presumably the
+#              order in which they were supplied on the command line).  The
+#              three spatial dimensions are always treated independently,
+#              so each parameter must have separate x, y, and z values.
+#              (The user can supply a single value for a given parameter
+#              using the -iso{extend,expand,whatever} command line
+#              options.)  The difference between the various parameters is
+#              how they treat the ends of each dimension, whether they tend
+#              to throw data away or keep it, etc.
+#
+#              Currently supported bounds modifiers are:
+#
+#                expand - the volume bounds are expanded symmetrically
+#                         at both ends
+#                extend - the volume bounds are extended independently;
+#                         each value (one per dimension) is actually a pair
+#                         of numbers -- the first specifies what to do at
+#                         the "low" end of the dimension, and the second
+#                         applies to the "high" end.  Here, "low" and
+#                         "high" are in the absolute, increasing-world-
+#                         coordinate sense -- low x is left, low y is
+#                         posterior, low z is inferior.  Thus they are
+#                         independent of the sign of that dimension's step.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : 
+#@MODIFIED   : 96/10/21, GW: changed to use Perl5 ref's and my
+#              96/10/22, GW: changed to support a list of modification 
+#                            parameters rather than just one of expand
+#                            or extend
+#-----------------------------------------------------------------------------
+sub ModifyBounds
+{
+   my ($start, $step, $extent, $param_list) = @_;
+   my ($param_desc, $param);
+   my @canon_dims = qw(xspace yspace zspace); # for debugging output
+
+   print "ModifyBounds:\n" if $Debug;
+
+   for $param_desc (@$param_list)
+   {
+      die "Invalid bounds modifier description" unless
+         (ref $param_desc eq 'ARRAY') && (@$param_desc == 4);
+
+      $param = $param_desc->[0];
+      if ($param eq 'expand')
+      {
+         foreach $i (0 .. 2)
+         {
+            my ($expand) = $param_desc->[$i+1];
+            printf "  %s: expanding by %s ", $canon_dims[$i], $expand
+               if $Debug;
+            
+            # If expansion factor given as a percentage or in voxels, then
+            # convert it to mm (world coordinates)
+            
+            $expand = &convert_modifier ($expand, $extent->[$i], $step->[$i]);
+
+            # And adjust the start and extent of the bounds accordingly
+
+            $start->[$i] -= $expand;
+            $extent->[$i] += 2*$expand;
+
+            if ($Debug)
+            {
+               printf "(=%gmm; ", $expand;
+               printf "now: start=%g, extent=%g)\n",
+                      $start->[$i], $extent->[$i];
+            }
+         }
+      }
+      elsif ($param eq 'extend')
+      {
+         foreach $i (0 .. 2)
+         {
+            my ($extend) = $param_desc->[$i+1];
+            my ($lo, $hi) = split (",", $extend);
+            my ($stop);
+            $lo = 0 unless $lo;
+            $hi = 0 unless $hi;
+            next unless ($lo || $hi);
+            printf "  %s: extending by %s,%s ", $canon_dims[$i], $lo, $hi
+               if $Debug;
+
+            # If extension factor given as a percentage or in voxels, then
+            # convert it to mm (world coordinates)
+
+            $lo = &convert_modifier ($lo, $extent->[$i], $step->[$i]);
+            $hi = &convert_modifier ($hi, $extent->[$i], $step->[$i]);
+            printf "(=%gmm, %gmm)\n", $lo, $hi if $Debug;
+
+            $stop = $start->[$i] + $extent->[$i] - $step->[$i];
+            printf "          before: start=%g, stop=%g, extent=%g\n",
+                   $start->[$i], $stop, $extent->[$i]
+               if $Debug;
+
+            if ($step->[$i] > 0.0)
+            {
+               $stop += $hi;
+               $start->[$i] -= $lo;
+            }
+            else
+            {
+               $stop += $lo;
+               $start->[$i] -= $hi;
+            }
+            $extent->[$i] = $stop - $start->[$i] + $step->[$i];
+
+            printf "           after: start=%g, stop=%g, extent=%g\n",
+                   $start->[$i], $stop, $extent->[$i]
+               if $Debug;
+         }
+      }
+      else 
+      {
+         die "Unknown bounds modifier $param";
+      }
+   }  # for $param_desc
+
+   if ($Debug)
+   {
+      my ($i, $dim);
+
+      for $i (0, 1, 2)
+      {
+         my $dim = $canon_dims[$i];
+         printf "  %s: start=%g, extent=%g\n", $dim, $start[$i], $extent[$i];
+      }
+   }
+}
+         
+         
+
+# --------------------------------------------------------------
+#   Low-level utility subroutines for reading/writing tag files:
+#      &ReadTagFile
+#      &WriteTagFile
+# --------------------------------------------------------------
+
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : ReadTagFile
+#@INPUT      : $file - input file to read
+#@OUTPUT     : @$x, @$y, @$z
+#@RETURNS    : number of tag points in the file, or 0 if any error
+#@DESCRIPTION: Reads an MNI tag point file into three Perl arrays (x, y,
+#              and z coordinates).  Only the tags for the first volume
+#              are read.  Prints a useful error message and returns 0 on error.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : Sept 1994, Greg Ward
+#@MODIFIED   : 1995/05/22, GW: changed die to warn, and added return 
+#                              value of 0 on error
+#              1996/10/21, GW: changed to use Perl5 refs and `my'
+#-----------------------------------------------------------------------------
+sub ReadTagFile
+{
+   my ($file, $x, $y, $z) = @_;
+   my ($tagsfound);
+
+   unless (open (TAGFILE, $file))
+   {
+      warn "Unable to open $file: $!\n";
+      return 0;
+   }
+
+   while (<TAGFILE>)
+   {
+      $tagsfound = 1, last if (/^\s*Points =\s*$/);
+   }
+   warn "Invalid-looking tag file: $file\n", return 0
+      unless ($tagsfound);
+
+   my $i = 0;
+   while (<TAGFILE>)
+   {
+      s/^\s+//;                        # strip leading whitespace
+      @_ = split;                # pull out first three coordinates
+      $x->[$i] = $_[0];
+      $y->[$i] = $_[1];
+      $z->[$i] = $_[2];
+      $i++;
+   }
+   close (TAGFILE);
+   return ($i);
+}
+
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : WriteTagFile
+#@INPUT      : $file - name of file to create (will be clobbered if
+#                      it already exists)
+#              $comment - comment to put at top of tag file; can be 
+#                         multiline; percent charaters will be added as
+#                         necessary                                
+#              $x,$y,$z - references to arrays of coordinates
+#@OUTPUT     : 
+#@RETURNS    : 1 on success, 0 if any error
+#@DESCRIPTION: Writes an MNI tag point file from three arrays of 
+#              x, y, and z coordinates.  Prints a useful error message
+#              and returns 0 on error.
+#@METHOD     : 
+#@GLOBALS    : 
+#@CALLS      : 
+#@CREATED    : Sept 1994, Greg Ward
+#@MODIFIED   : 1995/04/21, GW: added $comment argument
+#              1995/05/22, GW: changed die to warn, and added return values
+#              1996/10/21, GW: changed to use Perl5 refs and `my'
+#-----------------------------------------------------------------------------
+sub WriteTagFile
+{
+   my ($file, $comment, $x, $y, $z) = @_;
+   my ($i);
+
+   if (@$x != @$y || @$y != @$z)
+   {
+      warn "WriteTagFile: inconsistent number of points in tag list\n";
+      return 0;
+   }
+
+   open (TAGFILE, ">$file") || die "Can't create $file: $!\n";
+   $comment = "%" . $comment;
+   $comment =~ s/\n/\n%/;
+
+   print TAGFILE "MNI Tag Point File\n";
+   print TAGFILE $comment . "\n" if ($comment ne "");
+   print TAGFILE "Volumes = 1;\n";
+   print TAGFILE "Points =\n";
+
+
+   foreach $i (0 .. $#$x)
+   {
+      printf TAGFILE "%g %g %g \"\"", 
+                     $x->[$i], $y->[$i], $z->[$i];
+      print TAGFILE ";" if ($i == $#$x);
+      print TAGFILE "\n";
+   }
+
+   close (TAGFILE);
+   return 1;
+}
+
+
+sub comp_arrays
+{
+   die "comp_arrays: wrong number of arguments" unless (@_ == 2);
+   my ($a1, $a2) = @_;
+   
+   return 0 unless (@$a1 == @$a2);
+   for $i (0 .. $#$a1)
+   {
+      return 0 unless ($a1->[$i] == $a2->[$i]);
+   }
+   return 1;
+}
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &min
+#@INPUT      : List of scalars (numeric).
+#@OUTPUT     :
+#@RETURNS    : Minimum value from list.
+#@DESCRIPTION: Finds the min value in a list.
+#@METHOD     :
+#@GLOBALS    :
+#@CALLS      :
+#@CREATED    : August 95, GW (from Perl man page)
+#@MODIFIED   :
+#-----------------------------------------------------------------------------
+sub min
+{
+   my($min) = pop(@_);
+   foreach $foo (@_) {
+      $min = $foo if $min > $foo;
+   }
+   $min;
+}
+
+# ------------------------------ MNI Header ----------------------------------
+#@NAME       : &max
+#@INPUT      : List of scalars (numeric).
+#@OUTPUT     :
+#@RETURNS    : Maximum value from list.
+#@DESCRIPTION: Finds the max value in a list.
+#@METHOD     :
+#@GLOBALS    :
+#@CALLS      :
+#@CREATED    : August 95, GW (from Perl man page)
+#@MODIFIED   :
+#-----------------------------------------------------------------------------
+sub max
+{
+   my($max) = pop(@_);
+   foreach $foo (@_) {
+      $max = $foo if $max < $foo;
+   }
+   $max;
+}
+
+sub print_version {
+   print "\n$ProgramName $Version, built from:\n$LongVersion\n\n";
+   exit;
+}
