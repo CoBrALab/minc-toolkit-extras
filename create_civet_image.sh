@@ -658,19 +658,19 @@ ray_trace -output $TMPDIR/right_lateral.rgb $TMPDIR/right_comb.obj -size 1000 10
 #Create pngs
 for file in $TMPDIR/*.rgb
 do
-    echo convert $file $TMPDIR/$(basename $file rgb)png
+    echo convert $file PNG32:$TMPDIR/$(basename $file rgb)png
 done | parallel -j8
 
 #Create colourbars
-convert xc:rgb\(0,245,255\) xc:blue -append -filter Cubic -resize 30x600\! -bordercolor black -border 2x2 -bordercolor white -border 2x2 $TMPDIR/coldmetalinv.png
-convert xc:yellow xc:red -append -filter Cubic -resize 30x600\! -bordercolor black -border 2x2 -bordercolor white -border 2x2 $TMPDIR/redmetalinv.png
+convert xc:rgb\(0,245,255\) xc:blue -append -filter Cubic -resize 30x600\! -bordercolor black -border 2x2 -bordercolor white -border 2x2 PNG32:$TMPDIR/coldmetalinv.png
+convert xc:yellow xc:red -append -filter Cubic -resize 30x600\! -bordercolor black -border 2x2 -bordercolor white -border 2x2 PNG32:$TMPDIR/redmetalinv.png
 
 #Create combined figure
-convert -gravity Center -background black +append $TMPDIR/left_medial.png $TMPDIR/right_medial.png $TMPDIR/1.png
-convert -gravity Center -background black +append $TMPDIR/left_lateral.png $TMPDIR/right_lateral.png $TMPDIR/2.png
-convert -gravity Center -background black +append $TMPDIR/top.png $TMPDIR/bottom.png $TMPDIR/3.png
-convert -gravity Center -background black +append $TMPDIR/front.png $TMPDIR/back.png $TMPDIR/4.png
-convert $TMPDIR/1.png $TMPDIR/2.png $TMPDIR/3.png $TMPDIR/4.png -gravity Center -background black -append $TMPDIR/unlabelled.png
+convert -gravity Center -background black +append $TMPDIR/left_medial.png $TMPDIR/right_medial.png PNG32:$TMPDIR/1.png
+convert -gravity Center -background black +append $TMPDIR/left_lateral.png $TMPDIR/right_lateral.png PNG32:$TMPDIR/2.png
+convert -gravity Center -background black +append $TMPDIR/top.png $TMPDIR/bottom.png PNG32:$TMPDIR/3.png
+convert -gravity Center -background black +append $TMPDIR/front.png $TMPDIR/back.png PNG32:$TMPDIR/4.png
+convert $TMPDIR/1.png $TMPDIR/2.png $TMPDIR/3.png $TMPDIR/4.png -gravity Center -background black -append PNG32:$TMPDIR/unlabelled.png
 
 convert $TMPDIR/unlabelled.png \
 -page +1364+1685 $TMPDIR/coldmetalinv.png \
@@ -681,3 +681,5 @@ convert $TMPDIR/unlabelled.png \
 -stroke  none   -fill white  -pointsize 45 -annotate +5+1725 'FDR 1%' \
 -stroke  none   -fill white  -pointsize 45 -gravity north -annotate 0 "$column" \
 -flatten $output
+
+rm -rf $TMPDIR
