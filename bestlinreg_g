@@ -40,7 +40,7 @@ my @conf = (
      tolerance   => 0.0001,
      simplex     => 16 },
 
-   { type        => "blur",       
+   { type        => "blur",
      trans       => undef,
      blur_fwhm   => 8,
      steps       => [qw/4 4 4/],
@@ -58,8 +58,15 @@ my @conf = (
      trans       => undef,
      blur_fwhm   => 2,
      steps       => [qw/2 2 2/],
-     tolerance   => 0.0005,
+     tolerance   => 0.0001,
      simplex     => 4 },
+
+   { type        => "blur",
+     trans       => undef,
+     blur_fwhm   => 1,
+     steps       => [qw/1 1 1/],
+     tolerance   => 0.0001,
+     simplex     => 2 },
    );
 
 
@@ -68,17 +75,17 @@ my(@opt_table, %opt, $source, $target, $outxfm, $outfile, @args, $tmpdir);
 
 $me = &basename($0);
 %opt = (
-   'verbose'   => 1,
+   'verbose'   => 0,
    'clobber'   => 0,
    'fake'      => 0,
    'init_xfm'  => undef,
    'source_mask' => undef,
    'target_mask' => undef,
-   'lsqtype'     => "-lsq9",
+   'lsqtype'     => "-lsq12",
    'work_dir'    => undef,
    'sec_source'  => undef,
    'sec_target'  => undef,
-   'cost_function' => '-xcorr',
+   'cost_function' => '-nmi',
    'noshear'     => 0,
    'noscale'     => 0,
    'norot'       => 0,
@@ -91,7 +98,7 @@ $Help = <<HELP;
 | $me does hierachial linear fitting between two files.
 |    you will have to edit the script itself to modify the
 |    fitting levels themselves
-| 
+|
 | Problems or comments should be sent to: claude\@bic.mni.mcgill.ca
 HELP
 
@@ -189,15 +196,15 @@ $t_base = 't_'.$t_base;
 my $source_masked = $source;
 my $target_masked = $target;
 
-# initial transformation supplied by the user, applied to both the 
+# initial transformation supplied by the user, applied to both the
 # source image and its mask.
 
-if( defined($opt{init_xfm}) ) { 
+if( defined($opt{init_xfm}) ) {
   my $source_resampled = "${tmpdir}/${s_base}_resampled.mnc";
-  &do_cmd( 'mincresample', 
-           '-clobber', 
-           '-tfm_input_sampling', 
-           '-transform', $opt{init_xfm}, 
+  &do_cmd( 'mincresample',
+           '-clobber',
+           '-tfm_input_sampling',
+           '-transform', $opt{init_xfm},
            $source_masked, $source_resampled );
   $source_masked = $source_resampled;
 
@@ -206,7 +213,7 @@ if( defined($opt{init_xfm}) ) {
   {
     my $mask_resampled = "${tmpdir}/${s_base}_mask_resampled.mnc";
     &do_cmd( 'mincresample', '-clobber', '-like', $source_masked,
-             '-nearest_neighbour', '-transform', $opt{init_xfm}, 
+             '-nearest_neighbour', '-transform', $opt{init_xfm},
              $opt{source_mask}, $mask_resampled );
     $opt{source_mask} = $mask_resampled;
   }
@@ -216,7 +223,7 @@ $prev_xfm = undef;
 
 # a fitting we shall go...
 for ($i=0; $i<=$#conf; $i++){
-   
+
    # set up intermediate files
    $tmp_xfm = "$tmpdir/$s_base\_$i.xfm";
    $tmp_source = "$opt{work_dir}/$s_base\_$conf[$i]{blur_fwhm}";
@@ -224,7 +231,7 @@ for ($i=0; $i<=$#conf; $i++){
 
    $tmp_source = "$opt{work_dir}/$s_base\_$conf[$i]{blur_fwhm}";
    $tmp_target = "$opt{work_dir}/$t_base\_$conf[$i]{blur_fwhm}";
-    
+
    if($opt{close})
    {
      next if($conf[$i]{blur_fwhm}>8);
@@ -243,11 +250,11 @@ for ($i=0; $i<=$#conf; $i++){
                 " | xfm:            $tmp_xfm\n".
                 "-+-----------------------------------------------------\n".
                 "\n";
-   
+
    # blur the masked source and target images
    my @grad_opt = ();
    push( @grad_opt, '-gradient' ) if( $conf[$i]{type} eq "dxyz" );
-   
+
    if($conf[$i]{blur_fwhm}>0) # actually this should be 1
    {
      if(!-e "$tmp_source\_$conf[$i]{type}.mnc") {
@@ -292,28 +299,28 @@ for ($i=0; $i<=$#conf; $i++){
      }
    }
    # set up registration
-   @args = ('minctracc', '-clobber',
-            ( $i==0 ) ? '-lsq6' : 
-            ( ( $i==1 && $opt{lsqtype} ne "-lsq6" ) ? '-lsq7' : $opt{lsqtype} ),
+   @args = ('minctracc', '-clobber', '-tricubic',
+            ( $i==0 ) ? '-lsq6' :
+            ( ( $i==1 && $opt{lsqtype} ne "-lsq6" ) ?  '-lsq7' : ( ( $i==2 && $opt{lsqtype} ne "-lsq6" && $opt{lsqtype} ne "-lsq7" ) ? '-lsq9' : $opt{lsqtype} ) ),
             '-step', @{$conf[$i]{steps}}, '-simplex', $conf[$i]{simplex},
             '-tol', $conf[$i]{tolerance});
 
-   # Initial transformation will be computed from the from Principal axis 
+   # Initial transformation will be computed from the from Principal axis
    # transformation (PAT).
    push(@args, @{$conf[$i]{trans}}) if( defined $conf[$i]{trans} );
 
    # Current transformation at this step
-   if( defined $prev_xfm ) 
+   if( defined $prev_xfm )
    {
     push(@args, '-transformation', $prev_xfm ) ;
    } elsif($opt{close}) {
-    push(@args, '-identity') ;  
+    push(@args, '-identity') ;
    }
 
    # masks (even if the blurred image is masked, it's still preferable
    # to use the mask in minctracc)
-   push(@args, '-source_mask', $opt{source_mask} ) if $i==$#conf && defined($opt{source_mask});
-   push(@args, '-model_mask', $opt{target_mask}) if $i==$#conf && defined($opt{target_mask});
+   push(@args, '-source_mask', $opt{source_mask} ) if ($i >= ($#conf - 2)) && defined($opt{source_mask});
+   push(@args, '-model_mask', $opt{target_mask}) if ($i >= ($#conf - 2)) && defined($opt{target_mask});
 
    if($tmp_sec_source && $tmp_sec_target )
    {
@@ -330,17 +337,17 @@ for ($i=0; $i<=$#conf; $i++){
    push @args,'-w_scales',0,0,0 if $opt{noscale};
    push @args,'-w_translations',0,0,0 if $opt{noshift};
    push @args,'-w_rotations',0,0,0 if $opt{norot};
-   
+
    # add files and run registration
    push(@args, $tmp_xfm);
    &do_cmd(@args);
-   
+
    $prev_xfm = $tmp_xfm;
 }
 
 # Concatenate transformations if an initial transformation was given.
 
-if( defined $opt{init_xfm} ) { 
+if( defined $opt{init_xfm} ) {
   &do_cmd( 'xfmconcat', $opt{init_xfm}, $prev_xfm,  $outxfm ,'-clobber');
 } else {
   &do_cmd( 'mv', '-f', $prev_xfm, $outxfm );
@@ -353,10 +360,9 @@ if(defined($outfile)){
             '-transformation', $outxfm, $source, $outfile );
 }
 
-sub do_cmd { 
+sub do_cmd {
    print STDOUT "@_\n" if $opt{verbose};
    if(!$opt{fake}){
       system(@_) == 0 or die;
    }
 }
-       
