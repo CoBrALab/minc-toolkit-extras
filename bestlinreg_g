@@ -49,6 +49,13 @@ my @conf = (
 
    { type        => "blur",
      trans       => undef,
+     blur_fwhm   => 8,
+     steps       => [qw/4 4 4/],
+     tolerance   => 0.0001,
+     simplex     => 16 },
+
+   { type        => "blur",
+     trans       => undef,
      blur_fwhm   => 4,
      steps       => [qw/4 4 4/],
      tolerance   => 0.0001,
@@ -60,13 +67,6 @@ my @conf = (
      steps       => [qw/2 2 2/],
      tolerance   => 0.0001,
      simplex     => 4 },
-
-   { type        => "blur",
-     trans       => undef,
-     blur_fwhm   => 1,
-     steps       => [qw/1 1 1/],
-     tolerance   => 0.0001,
-     simplex     => 2 },
    );
 
 
@@ -301,7 +301,7 @@ for ($i=0; $i<=$#conf; $i++){
    # set up registration
    @args = ('minctracc', '-clobber', '-tricubic',
             ( $i==0 ) ? '-lsq6' :
-            ( ( $i==1 && $opt{lsqtype} ne "-lsq6" ) ?  '-lsq7' : ( ( $i==2 && $opt{lsqtype} ne "-lsq6" && $opt{lsqtype} ne "-lsq7" ) ? '-lsq9' : $opt{lsqtype} ) ),
+            ( ( $i==1 && $opt{lsqtype} ne "-lsq6" ) ?  '-lsq7' : ( ( ($i==2 || $i==3) && $opt{lsqtype} ne "-lsq6" && $opt{lsqtype} ne "-lsq7" ) ? '-lsq9' : $opt{lsqtype} ) ),
             '-step', @{$conf[$i]{steps}}, '-simplex', $conf[$i]{simplex},
             '-tol', $conf[$i]{tolerance});
 
