@@ -586,26 +586,30 @@ filename=$(basename $leftstatmap)
 extension="${filename##*.}"
 
 if [[ $(head -1 $leftbrain | tr " " "\n" | tail -1) == 40962 ]]; then
-    __mask="/opt/quarantine/resources/CIVET-CC-mask.txt"
+    __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET-CC-mask.txt"
 else
-    __mask="/opt/quarantine/resources/CIVET/CIVET_2.0_mask_left.txt"
+    __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET_2.0_mask_left.txt"
 fi
 
 #Pick out column, multiply by mask and store in new tempfile
 case $extension in
     csv)
-        awk -v target=$column -f <(printf "$awkscriptcsv") $leftstatmap | paste -d\* $__mask - | sed 's/[eE]+\{0,1\}/*10^/g' | bc > $TMPDIR/$(basename $leftstatmap)
-        awk -v target=$column -f <(printf "$awkscriptcsv") $rightstatmap | paste -d\* $__mask - | sed 's/[eE]+\{0,1\}/*10^/g' | bc > $TMPDIR/$(basename $rightstatmap)
+        awk -v target=$column -f <(printf "$awkscriptcsv") $leftstatmap > $TMPDIR/$(basename $leftstatmap).unmasked
+        awk -v target=$column -f <(printf "$awkscriptcsv") $rightstatmap > $TMPDIR/$(basename $rightstatmap).unmasked
         ;;
     vertstats)
-        awk -v target=$column -f <(printf "$awkscriptvertstats") $leftstatmap | paste -d\* $__mask - | sed 's/[eE]+\{0,1\}/*10^/g' | bc > $TMPDIR/$(basename $leftstatmap)
-        awk -v target=$column -f <(printf "$awkscriptvertstats") $rightstatmap | paste -d\* $__mask - | sed 's/[eE]+\{0,1\}/*10^/g' | bc > $TMPDIR/$(basename $rightstatmap)
+        awk -v target=$column -f <(printf "$awkscriptvertstats") $leftstatmap > $TMPDIR/$(basename $leftstatmap).unmasked
+        awk -v target=$column -f <(printf "$awkscriptvertstats") $rightstatmap > $TMPDIR/$(basename $rightstatmap).unmasked
         ;;
     txt)
-        cut -d " " -f $column $leftstatmap |  paste -d\* $__mask - | sed 's/[eE]+\{0,1\}/*10^/g' | bc > $TMPDIR/$(basename $leftstatmap)
-        cut -d " " -f $column $rightstatmap | paste -d\* $__mask - | sed 's/[eE]+\{0,1\}/*10^/g' | bc > $TMPDIR/$(basename $rightstatmap)
+        cut -d " " -f $column $leftstatmap > $TMPDIR/$(basename $leftstatmap).unmasked
+        cut -d " " -f $column $rightstatmap > $TMPDIR/$(basename $rightstatmap).unmasked
         ;;
 esac
+
+#Zero out the CIVET masking area
+vertstats_math -old_style_file -mult $__mask $TMPDIR/$(basename $leftstatmap).unmasked $TMPDIR/$(basename $leftstatmap)
+vertstats_math -old_style_file -mult $__mask $TMPDIR/$(basename $rightstatmap).unmasked $TMPDIR/$(basename $rightstatmap)
 
 
 #Redefine statmap to masked tempfile
