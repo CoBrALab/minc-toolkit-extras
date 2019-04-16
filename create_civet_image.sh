@@ -9,7 +9,8 @@ set -euo pipefail
 #IFS=$'\n\t'
 
 err_report() {
-    echo "Error on line $1"
+  echo "Error on line $1"
+  echo "temporary files found at ${tmpdir}"
 }
 
 trap 'err_report $LINENO' ERR
@@ -528,48 +529,47 @@ rmincblue='0 0 0 1
 1 0 0.96078431372549 1'
 
 awkscriptcsv='BEGIN{
-    OFS=FS=","
-    split(target, t_targets, ",")
-    for (i in t_targets)
-        targets[t_targets[i]] = i
+  OFS=FS=","
+  split(target, t_targets, ",")
+  for (i in t_targets)
+  targets[t_targets[i]] = i
 }
 NR==1 {
-    for (i = 1; i <= NF; i++) head[i] = gensub(/\"/,  "", "g", $i)
+  for (i = 1; i <= NF; i++) head[i] = gensub(/\"/,  "", "g", $i)
 }
 
 NR !=1{
-    for (i = 1; i <= NF; i++) {
-        if (head[i] in targets){
-            print $i
-        }
+  for (i = 1; i <= NF; i++) {
+    if (head[i] in targets){
+      print $i
     }
+  }
 }'
 
 awkscriptvertstats='BEGIN{
-    OFS=FS=" "
-    split(target, t_targets, ",")
-    for (i in t_targets)
-        targets[t_targets[i]] = i
+  OFS=FS=" "
+  split(target, t_targets, ",")
+  for (i in t_targets)
+  targets[t_targets[i]] = i
 }
 NR==3 {
-    for (i = 1; i <= NF; i++) head[i] = $i
+  for (i = 1; i <= NF; i++) head[i] = $i
 }
 
 NR >3{
-    for (i = 1; i <= NF; i++) {
-        if (head[i] in targets){
-            print $i
-        }
+  for (i = 1; i <= NF; i++) {
+    if (head[i] in targets){
+      print $i
     }
+  }
 }'
 
 if [[ $# -ne 8 ]]; then
-    echo 'Usage: create_civet_image.sh left.obj left_statmap left_FDR5,left_FDR1 right.obj right_statmap right_FDR5,right_FDR1 column_name|column_number output.png'
-    exit
+  echo 'Usage: create_civet_image.sh left.obj left_statmap left_FDR5,left_FDR1 right.obj right_statmap right_FDR5,right_FDR1 column_name|column_number output.png'
+  exit
 fi
 
-
-TMPDIR=$(mktemp -d)
+tmpdir=$(mktemp -d)
 leftbrain=$1
 leftstatmap=$2
 leftFDR5=$(echo $3 | cut -d"," -f 1)
@@ -586,104 +586,92 @@ filename=$(basename $leftstatmap)
 extension="${filename##*.}"
 
 if [[ $(head -1 $leftbrain | tr " " "\n" | tail -1) == 40962 ]]; then
-    __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET-CC-mask.txt"
+  __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET-CC-mask.txt"
 else
-    __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET_2.0_mask_left.txt"
+  __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET_2.0_mask_left.txt"
 fi
 
 #Pick out column, multiply by mask and store in new tempfile
 case $extension in
-    csv)
-        awk -v target=$column -f <(printf "$awkscriptcsv") $leftstatmap > $TMPDIR/$(basename $leftstatmap).unmasked
-        awk -v target=$column -f <(printf "$awkscriptcsv") $rightstatmap > $TMPDIR/$(basename $rightstatmap).unmasked
-        ;;
-    vertstats)
-        awk -v target=$column -f <(printf "$awkscriptvertstats") $leftstatmap > $TMPDIR/$(basename $leftstatmap).unmasked
-        awk -v target=$column -f <(printf "$awkscriptvertstats") $rightstatmap > $TMPDIR/$(basename $rightstatmap).unmasked
-        ;;
-    txt)
-        cut -d " " -f $column $leftstatmap > $TMPDIR/$(basename $leftstatmap).unmasked
-        cut -d " " -f $column $rightstatmap > $TMPDIR/$(basename $rightstatmap).unmasked
-        ;;
+  csv)
+    awk -v target=${column} -f <(printf "$awkscriptcsv") $leftstatmap > ${tmpdir}/$(basename $leftstatmap).unmasked
+    awk -v target=${column} -f <(printf "$awkscriptcsv") $rightstatmap > ${tmpdir}/$(basename $rightstatmap).unmasked
+    ;;
+  vertstats)
+    awk -v target=${column} -f <(printf "$awkscriptvertstats") $leftstatmap > ${tmpdir}/$(basename $leftstatmap).unmasked
+    awk -v target=${column} -f <(printf "$awkscriptvertstats") $rightstatmap > ${tmpdir}/$(basename $rightstatmap).unmasked
+    ;;
+  txt)
+    cut -d " " -f ${column} $leftstatmap > ${tmpdir}/$(basename $leftstatmap).unmasked
+    cut -d " " -f ${column} $rightstatmap > ${tmpdir}/$(basename $rightstatmap).unmasked
+    ;;
 esac
 
 #Zero out the CIVET masking area
-vertstats_math -old_style_file -mult $__mask $TMPDIR/$(basename $leftstatmap).unmasked $TMPDIR/$(basename $leftstatmap)
-vertstats_math -old_style_file -mult $__mask $TMPDIR/$(basename $rightstatmap).unmasked $TMPDIR/$(basename $rightstatmap)
-
+vertstats_math -old_style_file -mult $__mask ${tmpdir}/$(basename $leftstatmap).unmasked ${tmpdir}/$(basename $leftstatmap)
+vertstats_math -old_style_file -mult $__mask ${tmpdir}/$(basename $rightstatmap).unmasked ${tmpdir}/$(basename $rightstatmap)
 
 #Redefine statmap to masked tempfile
-leftstatmap=$TMPDIR/$(basename $leftstatmap)
-rightstatmap=$TMPDIR/$(basename $rightstatmap)
+leftstatmap=${tmpdir}/$(basename $leftstatmap)
+rightstatmap=${tmpdir}/$(basename $rightstatmap)
 
-printf '%s %s %s %s\n' $rmincred > $TMPDIR/rmincred.map
-printf '%s %s %s %s\n' $rmincblue > $TMPDIR/rmincblue.map
+printf '%s %s %s %s\n' $rmincred > ${tmpdir}/rmincred.map
+printf '%s %s %s %s\n' $rmincblue > ${tmpdir}/rmincblue.map
 
 #Colourize left
 if (( $(echo "$leftFDR5 <= $(sort -g $leftstatmap | tail -1)" | bc) ))
 then
-    colour_object $leftbrain $leftstatmap $TMPDIR/left_pos.obj user $TMPDIR/rmincred.map $leftFDR5 $leftFDR1 white yellow replace
+  colour_object $leftbrain $leftstatmap ${tmpdir}/left_pos.obj user ${tmpdir}/rmincred.map $leftFDR5 $leftFDR1 white yellow replace
 else
-    cp $leftbrain $TMPDIR/left_pos.obj
+  cp $leftbrain ${tmpdir}/left_pos.obj
 fi
 
 if (( $(echo "-$leftFDR5 >= $(sort -g $leftstatmap  | head -1)" | bc) ))
 then
-    colour_object $TMPDIR/left_pos.obj $leftstatmap $TMPDIR/left_comb.obj user $TMPDIR/rmincblue.map -$leftFDR5 -$leftFDR1 transparent "0 0.96078431372549 1" composite
+  colour_object ${tmpdir}/left_pos.obj $leftstatmap ${tmpdir}/left_comb.obj user ${tmpdir}/rmincblue.map -$leftFDR5 -$leftFDR1 transparent "0 0.96078431372549 1" composite
 else
-    cp  $TMPDIR/left_pos.obj $TMPDIR/left_comb.obj
+  cp  ${tmpdir}/left_pos.obj ${tmpdir}/left_comb.obj
 fi
 
 #Colourize right
 if (( $(echo "$rightFDR5 <= $(sort -g $rightstatmap | tail -1)" | bc) ))
 then
-    colour_object $rightbrain $rightstatmap $TMPDIR/right_pos.obj user $TMPDIR/rmincred.map $rightFDR5 $rightFDR1 white yellow replace
+  colour_object $rightbrain $rightstatmap ${tmpdir}/right_pos.obj user ${tmpdir}/rmincred.map $rightFDR5 $rightFDR1 white yellow replace
 else
-    cp $rightbrain $TMPDIR/right_pos.obj
+  cp $rightbrain ${tmpdir}/right_pos.obj
 fi
 
 if (( $(echo "-$rightFDR5 >= $(sort -g $rightstatmap  | head -1)" | bc) ))
 then
-    colour_object $TMPDIR/right_pos.obj $rightstatmap $TMPDIR/right_comb.obj user $TMPDIR/rmincblue.map -$rightFDR5 -$rightFDR1 transparent "0 0.96078431372549 1" composite
+  colour_object ${tmpdir}/right_pos.obj $rightstatmap ${tmpdir}/right_comb.obj user ${tmpdir}/rmincblue.map -$rightFDR5 -$rightFDR1 transparent "0 0.96078431372549 1" composite
 else
-    cp $TMPDIR/right_pos.obj $TMPDIR/right_comb.obj
+  cp ${tmpdir}/right_pos.obj ${tmpdir}/right_comb.obj
 fi
 
 #Generate views
-echo """ray_trace -output $TMPDIR/bottom.rgb $TMPDIR/left_comb.obj $TMPDIR/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -bottom -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/top.rgb $TMPDIR/left_comb.obj $TMPDIR/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -top -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/front.rgb $TMPDIR/left_comb.obj $TMPDIR/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -front -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/back.rgb $TMPDIR/left_comb.obj $TMPDIR/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -back -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/left_medial.rgb $TMPDIR/left_comb.obj -size 1000 1000 -crop -sup 3 -bg black -right -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/left_lateral.rgb $TMPDIR/left_comb.obj -size 1000 1000 -crop -sup 3 -bg black -left -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/right_medial.rgb $TMPDIR/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -left -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output $TMPDIR/right_lateral.rgb $TMPDIR/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black  -right -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1""" | parallel
+echo """ray_trace -output ${tmpdir}/bottom.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -bottom -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/top.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -top -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/front.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -front -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/back.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -back -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/left_medial.rgb ${tmpdir}/left_comb.obj -size 1000 1000 -crop -sup 3 -bg black -right -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/left_lateral.rgb ${tmpdir}/left_comb.obj -size 1000 1000 -crop -sup 3 -bg black -left -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/right_medial.rgb ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -left -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/right_lateral.rgb ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black  -right -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1""" | parallel
 
-#Create pngs
-for file in $TMPDIR/*.rgb
-do
-    echo convert $file PNG32:$TMPDIR/$(basename $file rgb)png
-done | parallel -j8
+convert -background black \
+  '(' ${tmpdir}/left_medial.rgb ${tmpdir}/right_medial.rgb +append -gravity Center ')' \
+  '(' ${tmpdir}/left_lateral.rgb ${tmpdir}/right_lateral.rgb +append -gravity Center ')' \
+  '(' ${tmpdir}/top.rgb ${tmpdir}/bottom.rgb +append -gravity Center ')' \
+  '(' ${tmpdir}/front.rgb ${tmpdir}/back.rgb +append -gravity Center ')' \
+  -append +repage \
+  -page +1354+1720 '(' -size 30x600 gradient:#00F5FF-#0000FF -bordercolor black -border 2x2 -bordercolor white -border 2x2 ')' \
+  -page +198+1720 '('  -size 30x600 gradient:#FFFF00-#FF0000 -bordercolor black -border 2x2 -bordercolor white -border 2x2 ')' \
+  -gravity NorthWest \
+  -stroke  white -strokewidth 2 -fill black -pointsize 45 -draw "text 1410,2275 'FDR 5%'" \
+  -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 1410,1725 'FDR 1%'" \
+  -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 10,2275 'FDR 5%'" \
+  -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 10,1725 'FDR 1%'" \
+  -gravity North -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 0,40 \"${column}\"" \
+  -flatten ${output}
 
-#Create colourbars
-convert xc:rgb\(0,245,255\) xc:blue -append -filter Cubic -resize 30x600\! -bordercolor black -border 2x2 -bordercolor white -border 2x2 PNG32:$TMPDIR/coldmetalinv.png
-convert xc:yellow xc:red -append -filter Cubic -resize 30x600\! -bordercolor black -border 2x2 -bordercolor white -border 2x2 PNG32:$TMPDIR/redmetalinv.png
-
-#Create combined figure
-convert -gravity Center -background black +append $TMPDIR/left_medial.png $TMPDIR/right_medial.png PNG32:$TMPDIR/1.png
-convert -gravity Center -background black +append $TMPDIR/left_lateral.png $TMPDIR/right_lateral.png PNG32:$TMPDIR/2.png
-convert -gravity Center -background black +append $TMPDIR/top.png $TMPDIR/bottom.png PNG32:$TMPDIR/3.png
-convert -gravity Center -background black +append $TMPDIR/front.png $TMPDIR/back.png PNG32:$TMPDIR/4.png
-convert $TMPDIR/1.png $TMPDIR/2.png $TMPDIR/3.png $TMPDIR/4.png -gravity Center -background black -append PNG32:$TMPDIR/unlabelled.png
-
-convert $TMPDIR/unlabelled.png \
--page +1364+1685 $TMPDIR/coldmetalinv.png \
--page +199+1685 $TMPDIR/redmetalinv.png \
--stroke  none   -fill white  -pointsize 45 -annotate +1410+2285 'FDR 5%' \
--stroke  none   -fill white  -pointsize 45 -annotate +1410+1725 'FDR 1%' \
--stroke  none   -fill white  -pointsize 45 -annotate +5+2285 'FDR 5%' \
--stroke  none   -fill white  -pointsize 45 -annotate +5+1725 'FDR 1%' \
--stroke  none   -fill white  -pointsize 45 -gravity north -annotate 0 "$column" \
--flatten $output
-
-rm -rf $TMPDIR
+rm -rf ${tmpdir}
