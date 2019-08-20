@@ -649,20 +649,31 @@ else
 fi
 
 #Generate views
-echo """ray_trace -output ${tmpdir}/bottom.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -bottom -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output ${tmpdir}/top.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -top -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output ${tmpdir}/front.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -front -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
-ray_trace -output ${tmpdir}/back.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -back -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+echo """ray_trace -output ${tmpdir}/inferior.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -bottom -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/superior.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -top -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/anterior.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -front -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
+ray_trace -output ${tmpdir}/posterior.rgb ${tmpdir}/left_comb.obj ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -back -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
 ray_trace -output ${tmpdir}/left_medial.rgb ${tmpdir}/left_comb.obj -size 1000 1000 -crop -sup 3 -bg black -right -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
 ray_trace -output ${tmpdir}/left_lateral.rgb ${tmpdir}/left_comb.obj -size 1000 1000 -crop -sup 3 -bg black -left -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
 ray_trace -output ${tmpdir}/right_medial.rgb ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black -left -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1
 ray_trace -output ${tmpdir}/right_lateral.rgb ${tmpdir}/right_comb.obj -size 1000 1000 -crop -sup 3 -bg black  -right -shadows -directional 1 -1 -1 1 1 1 -directional -1 -1 -1 1 1 1 -directional -1 -1 1 1 1 1""" | parallel
 
+for file in ${tmpdir}/*rgb; do
+    convert ${file} -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity south -annotate 0 "$(basename ${file} .rgb | sed 's/_/ /g')" ${tmpdir}/$(basename ${file} .rgb)_annotated.mpc
+done
+
+#convert ${tmpdir}/inferior_annotated.mpc -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity west -annotate 0 "R" -gravity east -annotate 0 "L" ${tmpdir}/inferior_annotated.mpc
+#convert ${tmpdir}/superior_annotated.mpc -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity west -annotate 0 "L" -gravity east -annotate 0 "R" ${tmpdir}/superior_annotated.mpc
+#convert ${tmpdir}/anterior_annotated.mpc -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity west -annotate 0 "R" -gravity east -annotate 0 "L" ${tmpdir}/anterior_annotated.mpc
+#convert ${tmpdir}/posterior_annotated.mpc -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity west -annotate 0 "L" -gravity east -annotate 0 "R" ${tmpdir}/posterior_annotated.mpc
+
 convert -background black \
-  '(' ${tmpdir}/left_medial.rgb ${tmpdir}/right_medial.rgb +append -gravity Center ')' \
-  '(' ${tmpdir}/left_lateral.rgb ${tmpdir}/right_lateral.rgb +append -gravity Center ')' \
-  '(' ${tmpdir}/top.rgb ${tmpdir}/bottom.rgb +append -gravity Center ')' \
-  '(' ${tmpdir}/front.rgb ${tmpdir}/back.rgb +append -gravity Center ')' \
+  '(' ${tmpdir}/left_medial_annotated.mpc ${tmpdir}/right_medial_annotated.mpc +append -gravity Center ')' \
+  '(' ${tmpdir}/left_lateral_annotated.mpc ${tmpdir}/right_lateral_annotated.mpc +append -gravity Center ')' \
+  '(' ${tmpdir}/superior_annotated.mpc ${tmpdir}/inferior_annotated.mpc +append -gravity Center \
+    -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity west -annotate 0 "L" -gravity east -annotate 0 "L" -gravity center -annotate 0 "R" ')' \
+  '(' ${tmpdir}/anterior_annotated.mpc ${tmpdir}/posterior_annotated.mpc +append -gravity Center \
+    -stroke  white -strokewidth 2 -fill black -pointsize 45 -gravity west -annotate 0 "R" -gravity east -annotate 0 "R" -gravity center -annotate 0 "L" ')' \
   -append +repage \
   -page +1354+1720 '(' -size 30x600 gradient:#00F5FF-#0000FF -bordercolor black -border 2x2 -bordercolor white -border 2x2 ')' \
   -page +198+1720 '('  -size 30x600 gradient:#FFFF00-#FF0000 -bordercolor black -border 2x2 -bordercolor white -border 2x2 ')' \
@@ -671,7 +682,7 @@ convert -background black \
   -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 1410,1725 'FDR 1%'" \
   -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 10,2275 'FDR 5%'" \
   -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 10,1725 'FDR 1%'" \
-  -gravity North -stroke  white -strokewidth 2 -fill black  -pointsize 45 -draw "text 0,40 \"${column}\"" \
+  -gravity North -stroke white -strokewidth 2 -fill black  -pointsize 45 -draw "text 0,10 \"${column}\"" \
   -flatten ${output}
 
 rm -rf ${tmpdir}
