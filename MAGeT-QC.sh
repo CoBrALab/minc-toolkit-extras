@@ -6,7 +6,7 @@
 #-option for image size
 #-clobber check
 
-set -e
+set -euo pipefail
 
 image=$1
 label=$2
@@ -14,44 +14,44 @@ output=$3
 tmpdir=$(mktemp -d)
 
 mincresample $(mincbbox -mincresample $label) $label $tmpdir/label-crop.mnc
-minccalc -expression "A[0]?1:1" $tmpdir/label-crop.mnc $tmpdir/bounding.mnc
+minccalc -expression "1" $tmpdir/label-crop.mnc $tmpdir/bounding.mnc
 
 #Trasverse
-create_verify_image $tmpdir/$(basename $image .mnc)_t.rgb \
--width 3840 -autocols 20 -autocol_planes t \
+create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_t.rgb \
+-width 1920 -autocols 9 -autocol_planes t \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray \
 volume_overlay:$label:0.4
 
-create_verify_image $tmpdir/$(basename $image .mnc)_t2.rgb \
--width 3840 -autocols 20 -autocol_planes t \
+create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_t2.rgb \
+-width 1920 -autocols 9 -autocol_planes t \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray
 
 #Saggital
-create_verify_image $tmpdir/$(basename $image .mnc)_s.rgb \
--width 3840 -autocols 20 -autocol_planes s \
+create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_s.rgb \
+-width 1920 -autocols 9 -autocol_planes s \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray \
 volume_overlay:$label:0.4
 
-create_verify_image $tmpdir/$(basename $image .mnc)_s2.rgb \
--width 3840 -autocols 20 -autocol_planes s \
+create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_s2.rgb \
+-width 1920 -autocols 9 -autocol_planes s \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray
 
 #Coronal
-create_verify_image $tmpdir/$(basename $image .mnc)_c.rgb \
--width 3840 -autocols 20 -autocol_planes c \
+create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_c.rgb \
+-width 1920 -autocols 9 -autocol_planes c \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray \
 volume_overlay:$label:0.4
 
-create_verify_image $tmpdir/$(basename $image .mnc)_c2.rgb \
--width 3840 -autocols 20 -autocol_planes c \
+create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_c2.rgb \
+-width 1920 -autocols 9 -autocol_planes c \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray
 
-convert -append -trim $tmpdir/*.rgb $output
+convert -strip -interlace Plane -sampling-factor 4:2:0 -quality "85%"  -append -trim $tmpdir/*.rgb $output
 
 rm -rf $tmpdir
