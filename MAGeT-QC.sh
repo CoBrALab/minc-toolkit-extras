@@ -52,6 +52,6 @@ create_verify_image -range_floor 0 $tmpdir/$(basename $image .mnc)_c2.rgb \
 -bounding_volume $tmpdir/bounding.mnc \
 -row $image color:gray
 
-convert -strip -interlace Plane -sampling-factor 4:2:0 -quality "85%"  -append -trim $tmpdir/*.rgb $output
+convert -background black -strip -interlace Plane -sampling-factor 4:2:0 -quality "85%"  -append -trim $tmpdir/*.rgb $output
 
 rm -rf $tmpdir
