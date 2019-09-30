@@ -46,10 +46,10 @@ minccalc -byte -unsigned -expression 'A[0]?1:1' $tmpdir/denoise.mnc $tmpdir/full
 antsRegistration --dimensionality 3 --float 0 --collapse-output-transforms 1 --verbose --minc \
 --output $tmpdir/trans \
 --use-histogram-matching 0 \
---transform Rigid[0.1] --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 6x4 --smoothing-sigmas 3x2 --masks [NULL,NULL] \
---transform Similarity[0.1] --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 4x2 --smoothing-sigmas 2x1 --masks [NULL,NULL] \
---transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 2x1 --smoothing-sigmas 2x1 --masks [NULL,NULL]  \
---transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 2x1 --smoothing-sigmas 1x0.5 --masks [NULL,${REGMASK}]
+--transform Rigid[0.1] --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 6x4 --smoothing-sigmas 3x2 --masks [NULL,NULL] \
+--transform Similarity[0.1] --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 4x2 --smoothing-sigmas 2x1 --masks [NULL,NULL] \
+--transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 2x1 --smoothing-sigmas 2x1 --masks [NULL,NULL]  \
+--transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 2x1 --smoothing-sigmas 1x0.5 --masks [NULL,${REGMASK}]
 
 #Transform brain mask back
 antsApplyTransforms -d 3 -i ${REGMASK} -o $tmpdir/mask.mnc -t $tmpdir/trans0_GenericAffine.xfm -r $tmpdir/denoise.mnc -n NearestNeighbor
@@ -61,10 +61,10 @@ N4BiasFieldCorrection -d 3 -i $tmpdir/denoise.mnc -b [20] -c [200x200x200,0.0] -
 antsRegistration --dimensionality 3 --float 0 --collapse-output-transforms 1 --verbose --minc \
 --output $tmpdir/trans \
 --use-histogram-matching 0 \
---transform Rigid[0.1] --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 6x4 --smoothing-sigmas 3x2 --masks [NULL,NULL] \
---transform Similarity[0.1] --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 4x2 --smoothing-sigmas 2x1 --masks [NULL,NULL] \
---transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 2x1 --smoothing-sigmas 2x1 --masks [NULL,NULL]  \
---transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10,1] --shrink-factors 2x1 --smoothing-sigmas 1x0.5 --masks [NULL,${REGMASK}]
+--transform Rigid[0.1] --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 6x4 --smoothing-sigmas 3x2 --masks [NULL,NULL] \
+--transform Similarity[0.1] --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 4x2 --smoothing-sigmas 2x1 --masks [NULL,NULL] \
+--transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 2x1 --smoothing-sigmas 2x1 --masks [NULL,NULL]  \
+--transform Affine[0.1]     --metric Mattes[$tmpdir/denoise.N4.mnc,${REGTARGET},1] --convergence [2000x2000,1e-6,10] --shrink-factors 2x1 --smoothing-sigmas 1x0.5 --masks [NULL,${REGMASK}]
 
 #Transform new mask
 antsApplyTransforms -d 3 -i ${REGMASK} -o $tmpdir/mask.mnc -t $tmpdir/trans0_GenericAffine.xfm -r $tmpdir/denoise.N4.mnc -n NearestNeighbor

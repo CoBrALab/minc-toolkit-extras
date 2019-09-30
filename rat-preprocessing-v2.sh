@@ -51,9 +51,9 @@ antsRegistration --dimensionality 3 --float 1 --collapse-output-transforms 1 --m
 --output $tmpdir/trans \
 --use-histogram-matching 0 \
 --initial-moving-transform [${REGTARGET},$tmpdir/corrected.mnc,1] \
---transform Rigid[0.1] --metric Mattes[${REGTARGET},$tmpdir/corrected.mnc,1,32,None] --convergence [2000x2000x2000x2000x2000x0,1e-6,10,1] --shrink-factors 10x8x6x4x2x1 --smoothing-sigmas 5x4x3x2x1x0 --masks [NULL,NULL] \
---transform Similarity[0.1] --metric Mattes[${REGTARGET},$tmpdir/corrected.mnc,1,32,None] --convergence [2000x2000x2000,1e-6,10,1] --shrink-factors 6x4x2 --smoothing-sigmas 3x2x1 --masks [NULL,NULL] \
---transform Affine[0.1]     --metric Mattes[${REGTARGET},$tmpdir/corrected.mnc,1,32,None] --convergence [2000x2000x0,1e-6,10,1] --shrink-factors 4x2x1 --smoothing-sigmas 2x1x0 --masks [${REGMASK},NULL] --verbose
+--transform Rigid[0.1] --metric Mattes[${REGTARGET},$tmpdir/corrected.mnc,1,32,None] --convergence [2000x2000x2000x2000x2000x0,1e-6,10] --shrink-factors 10x8x6x4x2x1 --smoothing-sigmas 5x4x3x2x1x0 --masks [NULL,NULL] \
+--transform Similarity[0.1] --metric Mattes[${REGTARGET},$tmpdir/corrected.mnc,1,32,None] --convergence [2000x2000x2000,1e-6,10] --shrink-factors 6x4x2 --smoothing-sigmas 3x2x1 --masks [NULL,NULL] \
+--transform Affine[0.1]     --metric Mattes[${REGTARGET},$tmpdir/corrected.mnc,1,32,None] --convergence [2000x2000x0,1e-6,10] --shrink-factors 4x2x1 --smoothing-sigmas 2x1x0 --masks [${REGMASK},NULL] --verbose
 
 antsApplyTransforms -d 3 -i ${REGMASK} -o $tmpdir/mask.mnc -t [$tmpdir/trans0_GenericAffine.xfm,1] -r $tmpdir/denoise.mnc -n NearestNeighbor
 
@@ -79,5 +79,6 @@ antsApplyTransforms -d 3 -i ${tmpdir}/mask2.mnc -r $(dirname $output)/$(basename
 
 volcentre ${tmpdir}/cropped.mnc ${output}
 volcentre ${tmpdir}/mask2.mnc $(dirname $output)/$(basename $output .mnc)_mask.mnc
+
 
 rm -rf $tmpdir
