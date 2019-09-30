@@ -27,16 +27,16 @@ blur_scale = 32
 shrink_scale = blur_scale / 2 / resolution
 
 while (blur_scale > 0.5):
-    shrinks.append(str(int(max(1.0,np.around(shrink_scale)))))
+    shrinks.append(str(int(min(8.0/resolution,max(1.0,np.around(shrink_scale))))))
     blurs.append(str(blur_scale / fwhm_to_sigma))
-    iterations.append(str(min(2025, int(250 * 3**(shrink_scale)))))
+    iterations.append(str(min(2025, int(50 * 3**(shrink_scale)))))
     bins.append(str(int(np.around((max(32, 256 / max(1, shrink_scale * resolution)))))))
     blur_scale = blur_scale / 2
     shrink_scale = shrink_scale / 2
 
 shrinks.append("1")
 blurs.append("0")
-iterations.append("250")
+iterations.append("50")
 
 print("--convergence [{},1e-6,10]".format("x".join(iterations)), end=' ')
 print("--shrink-factors {}".format("x".join(shrinks)), end=' ')
