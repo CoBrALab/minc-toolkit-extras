@@ -26,7 +26,7 @@ fwhm_to_sigma = 2*np.sqrt(2*np.log(2))
 blur_scale = 32
 start_scale = blur_scale / 2 / resolution
 
-for shrink_scale in range(int(np.around(start_scale)), 0, -1):
+for shrink_scale in range(int(np.ceil(start_scale)), 0, -1):
     shrinks.append(str(int(min(8.0/resolution,max(1.0,np.around(shrink_scale))))))
     blurs.append(str(shrink_scale * 2 * resolution / fwhm_to_sigma))
     iterations.append(str(min(2025, int(25 * 3**(shrink_scale)))))
