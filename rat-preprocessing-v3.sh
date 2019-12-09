@@ -35,7 +35,7 @@ ImageMath 3 ${tmpdir}/denoise.mnc PadImage ${tmpdir}/denoise.mnc 50
 antsApplyTransforms -d 3 -i ${tmpdir}/cropmask.mnc -r ${tmpdir}/denoise.mnc -n GenericLabel --verbose -o ${tmpdir}/cropmask.mnc
 
 #Extract data with cropmask
-ImageMath 3 ${tmpdir}/denoise.mnc m ${tmpdir}/denoise.mnc ${tmpdir}/cropmask.mnc
+#ImageMath 3 ${tmpdir}/denoise.mnc m ${tmpdir}/denoise.mnc ${tmpdir}/cropmask.mnc
 ExtractRegionFromImageByMask 3 ${tmpdir}/denoise.mnc ${tmpdir}/denoise.crop.mnc ${tmpdir}/cropmask.mnc 1 5
 mv -f ${tmpdir}/denoise.crop.mnc ${tmpdir}/denoise.mnc
 
