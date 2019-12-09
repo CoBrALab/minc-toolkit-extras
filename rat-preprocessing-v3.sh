@@ -16,11 +16,11 @@ output=$2
 mincmath -clamp -const2 0 $(mincstats -max -quiet ${input}) ${input} ${tmpdir}/clamp.mnc
 
 #Reorient to MINC RAS
-volflip -y ${tmpdir}/clamp.mnc ${tmpdir}/flip.mnc
-volmash -swap zy ${tmpdir}/flip.mnc ${tmpdir}/mash.mnc
+volmash -swap zy ${tmpdir}/clamp.mnc ${tmpdir}/mash.mnc
+volflip -x ${tmpdir}/mash.mnc ${tmpdir}/flip.mnc
 
 #Center FOV
-volcentre -zero_dircos -com ${tmpdir}/mash.mnc ${tmpdir}/centre.mnc
+volcentre -zero_dircos -com ${tmpdir}/flip.mnc ${tmpdir}/centre.mnc
 
 #Denoise
 minc_anlm --rician --mt $(nproc) ${tmpdir}/centre.mnc ${tmpdir}/denoise.mnc
