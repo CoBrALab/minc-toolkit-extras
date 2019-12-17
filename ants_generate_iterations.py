@@ -31,7 +31,7 @@ parser.add_argument(
 parser.add_argument(
     '--max', help='max size of fixed file (mm)', type=float, required=True)
 parser.add_argument(
-    '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm'])
+    '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving'])
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
@@ -134,3 +134,30 @@ elif args.output == 'generic':
     print("--convergence [ {},1e-6,10 ]".format("x".join(iterations)), end=' \\\n')
     print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
     print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
+
+elif args.output == "multilevel-halving":
+    transforms = ["--transform Translation[ 0.5 ]",
+                  "--transform Rigid[ 0.5 ]",
+                  "--transform Similarity[ 0.25 ]",
+                  "--transform Affine[ 0.125 ]",
+                  "--transform Affine[ 0.0625 ]"]
+    masks = ["--masks [ NOMASK,NOMASK ]",
+             "--masks [ NOMASK,NOMASK ]",
+             "--masks [ NOMASK,NOMASK ]",
+             "--masks [ NOMASK,NOMASK ]",
+             "--masks [ NOMASK,NOMASK ]", ]
+    percents = ["0.25",
+                "0.5",
+                "0.5",
+                "0.75",
+                "1"]
+
+    slicestart=0
+    for i, transform in enumerate(transforms):
+      print(transform, end=' \\\n')
+      print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},Regular,{} ]".format(bins[slicestart], percents[i]), end=' \\\n')
+      print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
+      print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
+      print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
+      print("\t" + masks[i], end=' \\\n')
+      slicestart = slicestart + int(len(blurs)/2**(i+1))
