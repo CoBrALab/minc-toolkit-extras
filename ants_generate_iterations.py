@@ -31,6 +31,8 @@ parser.add_argument(
 parser.add_argument(
     '--max', help='max size of fixed file (mm)', type=float, required=True)
 parser.add_argument(
+    '--start-scale', help='set starting scale (mm), default calculated from max size', type=float)
+parser.add_argument(
     '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving'])
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
@@ -59,7 +61,10 @@ bins = []
 fwhm_to_sigma = 2 * np.sqrt(2 * np.log(2))
 
 # Inital resolution scaling
-start_shrink = max_size / 8 / 2 / min_resolution
+if args.start_scale:
+  start_shrink = args.start_scale / min_resolution
+else:
+  start_shrink = max_size / 8 / 2 / min_resolution
 
 if isinstance(step_size, int):
     for shrink_scale in range(int(np.ceil(start_shrink)), 0, -1 * step_size):
