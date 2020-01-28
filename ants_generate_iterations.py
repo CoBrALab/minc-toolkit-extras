@@ -109,7 +109,6 @@ if args.output == 'affine':
     slicestart = 0
     slicesize = max(3,int(np.around(len(shrinks) / (len(transforms)) * 1.5)))
     
-    print(len(shrinks))
     for i, transform in enumerate(transforms):
         if i == len(transforms)-1:
           print(transform, end=' \\\n')
