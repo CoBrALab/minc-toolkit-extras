@@ -64,14 +64,14 @@ fwhm_to_sigma = 2 * np.sqrt(2 * np.log(2))
 if args.start_scale:
   start_shrink = args.start_scale / min_resolution
 else:
-  start_shrink = max_size / 8 / 2 / min_resolution
+  start_shrink = max_size / 28 / min_resolution
 
 if isinstance(step_size, int):
-    for shrink_scale in range(int(np.ceil(start_shrink)), 0, -1 * step_size):
+    for shrink_scale in range(int(np.around(start_shrink)), 0, -1 * step_size):
         shrinks.append(
             str(int(min(max_size / 32 / min_resolution, max(1.0, np.around(shrink_scale))))))
         blurs.append(str(shrink_scale * 2 * min_resolution / fwhm_to_sigma))
-        iterations.append(str(min(2025, int(25 * 3**(shrink_scale)))))
+        iterations.append(str(min(2025, int(25 * 3**(max(0,shrink_scale - 1))))))
         bins.append(
             str(int(np.around((max(32, 256 / max(1, int(shrinks[-1]))))))))
 else:
@@ -81,7 +81,7 @@ else:
         shrinks.append(
             str(int(min(max_size / 32 / min_resolution, max(1.0, np.around(shrink_scale))))))
         blurs.append(str(blur_scale / fwhm_to_sigma))
-        iterations.append(str(min(2025, int(25 * 3**(shrink_scale)))))
+        iterations.append(str(min(2025, int(25 * 3**(max(0,shrink_scale-1))))))
         bins.append(
             str(int(np.around((max(32, 256 / max(1,  int(shrinks[-1]))))))))
         blur_scale = blur_scale / 2
@@ -93,38 +93,48 @@ iterations.append("25")
 bins.append(str(int(np.around((max(32, 256 / max(1, 1 * min_resolution)))))))
 
 if args.output == 'affine':
-    transforms = ["--transform Translation[ 0.5 ]",
-                  "--transform Rigid[ 0.5 ]",
-                  "--transform Similarity[ 0.25 ]",
-                  "--transform Affine[ 0.125 ]"]
+    transforms = ["--transform Translation[ 0.1 ]",
+                  "--transform Rigid[ 0.1 ]",
+                  "--transform Similarity[ 0.1 ]",
+                  "--transform Affine[ 0.1 ]"]
     masks = ["--masks [ NOMASK,NOMASK ]",
              "--masks [ NOMASK,NOMASK ]",
              "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]", ]
-    percents = ["0.25",
-                "0.5",
-                "0.5",
-                "0.75", ]
+             "--masks [ ${fixedmask},${movingmask} ]" ]
+    repeatmask = [ False,
+                   False,
+                   "--masks [ ${fixedmask},${movingmask} ]",
+                   False ] 
 
     slicestart = 0
-    slicesize = int(np.floor(len(shrinks) / (len(transforms)) * 1.5))
-
+    slicesize = max(3,int(np.around(len(shrinks) / (len(transforms)) * 1.5)))
+    
+    print(len(shrinks))
     for i, transform in enumerate(transforms):
-        print(transform, end=' \\\n')
-        print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},Regular,{} ]".format(bins[slicestart + slicesize], percents[i]), end=' \\\n')
-        print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:slicestart + slicesize])), end=' \\\n')
-        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
-        print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
-        print("\t" + masks[i], end=' \\\n')
-        slicestart += int(np.floor(slicesize / 2))
-
-    print("--transform Affine[ 0.0625 ] \\")
-    print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[-1]), end=' \\\n')
-    print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[len(shrinks) - slicesize:])), end=' \\\n')
-    print("\t--shrink-factors {}".format("x".join(shrinks[len(shrinks) - slicesize:])), end=' \\\n')
-    print("\t--smoothing-sigmas {}mm".format("x".join(blurs[len(shrinks) - slicesize:])), end=' \\\n')
-    print("\t--masks [ ${fixedmask},${movingmask} ]")
-
+        if i == len(transforms)-1:
+          print(transform, end=' \\\n')
+          print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
+          print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
+          print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
+          print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
+          print("\t" + masks[i], end=' \\\n')
+          slicestart += int(np.floor(slicesize / 2))
+        else:
+          print(transform, end=' \\\n')
+          print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
+          print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:slicestart + slicesize])), end=' \\\n')
+          print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
+          print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
+          print("\t" + masks[i], end=' \\\n')
+          if repeatmask[i]:
+            print(transform, end=' \\\n')
+            print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
+            print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:slicestart + slicesize])), end=' \\\n')
+            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
+            print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
+            print("\t" + repeatmask[i], end=' \\\n')
+          slicestart += int(np.floor(slicesize / 2))
+          
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
     print("--reg-shrinks {}".format("x".join(shrinks)), end=' \\\n')
@@ -141,28 +151,38 @@ elif args.output == 'generic':
     print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
 elif args.output == "multilevel-halving":
-    transforms = ["--transform Translation[ 0.5 ]",
-                  "--transform Rigid[ 0.5 ]",
-                  "--transform Similarity[ 0.25 ]",
-                  "--transform Affine[ 0.125 ]",
-                  "--transform Affine[ 0.0625 ]"]
+    transforms = ["--transform Rigid[ 0.1 ]",
+                  "--transform Similarity[ 0.1 ]",
+                  "--transform Affine[ 0.1 ]"]
     masks = ["--masks [ NOMASK,NOMASK ]",
              "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]", ]
-    percents = ["0.25",
-                "0.5",
-                "0.5",
-                "0.75",
-                "1"]
+             "--masks [ ${fixedmask},${movingmask} ]" ]
+    repeatmask = [ False,
+                   "--masks [ ${fixedmask},${movingmask} ]",
+                   False ] 
 
     slicestart=0
     for i, transform in enumerate(transforms):
-      print(transform, end=' \\\n')
-      print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},Regular,{} ]".format(bins[slicestart], percents[i]), end=' \\\n')
-      print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
-      print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
-      print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
-      print("\t" + masks[i], end=' \\\n')
-      slicestart = slicestart + int(len(blurs)/2**(i+1))
+      if i == len(transforms) - 1:
+        print(transform, end=' \\\n')
+        print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
+        print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
+        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
+        print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
+        print("\t" + masks[i], end=' \\\n')
+        slicestart = slicestart + int(len(blurs)/2**(i+1))
+      else:
+        print(transform, end=' \\\n')
+        print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
+        print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:len(blurs)-2])), end=' \\\n')
+        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:len(blurs)-2])), end=' \\\n')
+        print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:len(blurs)-2])), end=' \\\n')
+        print("\t" + masks[i], end=' \\\n')
+        if repeatmask[i]:
+          print(transform, end=' \\\n')
+          print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
+          print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:len(blurs)-2])), end=' \\\n')
+          print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:len(blurs)-2])), end=' \\\n')
+          print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:len(blurs)-2])), end=' \\\n')
+          print("\t" + repeatmask[i], end=' \\\n')
+        slicestart = slicestart + int(len(blurs)/2**(i+1))
