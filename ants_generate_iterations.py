@@ -116,7 +116,7 @@ if args.output == 'affine':
           print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
           print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
           print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
-          print("\t" + masks[i], end=' \\\n')
+          print("\t" + masks[i], end= ' ')
           slicestart += int(np.floor(slicesize / 2))
         else:
           print(transform, end=' \\\n')
@@ -168,7 +168,7 @@ elif args.output == "multilevel-halving":
         print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
         print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
         print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
-        print("\t" + masks[i], end=' \\\n')
+        print("\t" + masks[i], end=' ')
         slicestart = slicestart + int(len(blurs)/2**(i+1))
       else:
         print(transform, end=' \\\n')
