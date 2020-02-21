@@ -113,7 +113,7 @@ if args.output == 'affine':
         if i == len(transforms)-1:
           print(transform, end=' \\\n')
           print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
-          print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
+          print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:]), args.convergence), end=' \\\n')
           print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
           print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
           print("\t" + masks[i], end= ' ')
@@ -121,14 +121,14 @@ if args.output == 'affine':
         else:
           print(transform, end=' \\\n')
           print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
-          print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:slicestart + slicesize])), end=' \\\n')
+          print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:slicestart + slicesize]), args.convergence), end=' \\\n')
           print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
           print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
           print("\t" + masks[i], end=' \\\n')
           if repeatmask[i]:
             print(transform, end=' \\\n')
             print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
-            print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:slicestart + slicesize])), end=' \\\n')
+            print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:slicestart + slicesize]), args.convergence), end=' \\\n')
             print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
             print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
             print("\t" + repeatmask[i], end=' \\\n')
@@ -145,7 +145,7 @@ elif args.output == 'modelbuild':
     print("-s {}mm".format("x".join(blurs)), end=' ')
 
 elif args.output == 'generic':
-    print("--convergence [ {},1e-6,10 ]".format("x".join(iterations)), end=' \\\n')
+    print("--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
     print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
     print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
@@ -165,7 +165,7 @@ elif args.output == "multilevel-halving":
       if i == len(transforms) - 1:
         print(transform, end=' \\\n')
         print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
-        print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:])), end=' \\\n')
+        print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:]), args.convergence), end=' \\\n')
         print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
         print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
         print("\t" + masks[i], end=' ')
@@ -173,14 +173,14 @@ elif args.output == "multilevel-halving":
       else:
         print(transform, end=' \\\n')
         print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
-        print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:len(blurs)-2])), end=' \\\n')
+        print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:len(blurs)-2]), args.convergence), end=' \\\n')
         print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:len(blurs)-2])), end=' \\\n')
         print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:len(blurs)-2])), end=' \\\n')
         print("\t" + masks[i], end=' \\\n')
         if repeatmask[i]:
           print(transform, end=' \\\n')
           print("\t--metric Mattes[ ${{fixedfile}},${{movingfile}},1,{},None ]".format(bins[slicestart]), end=' \\\n')
-          print("\t--convergence [ {},1e-6,10 ]".format("x".join(iterations[slicestart:len(blurs)-2])), end=' \\\n')
+          print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:len(blurs)-2]), args.convergence), end=' \\\n')
           print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:len(blurs)-2])), end=' \\\n')
           print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:len(blurs)-2])), end=' \\\n')
           print("\t" + repeatmask[i], end=' \\\n')
