@@ -58,10 +58,11 @@ shrinks = []
 blurs = []
 iterations = []
 bins = []
-min_iterations = args.final_iterations
 
-if args.output == "affine" or args.output == "multilevel-halving" and args.final_iterations != 25:
+if args.output == "affine" or args.output == "multilevel-halving" and args.final_iterations == 25:
   min_iterations = 50
+else:
+  min_iterations = args.final_iterations
 
 # Converter
 fwhm_to_sigma = 2 * np.sqrt(2 * np.log(2))
