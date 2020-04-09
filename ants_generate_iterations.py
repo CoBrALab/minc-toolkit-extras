@@ -33,6 +33,8 @@ parser.add_argument(
 parser.add_argument(
     '--start-scale', help='set starting scale (mm), default calculated from max size', type=float)
 parser.add_argument(
+    '--final-iterations', help='total number of iterations at lowest scale', type=int, default=25)
+parser.add_argument(
     '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving'])
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
@@ -56,9 +58,9 @@ shrinks = []
 blurs = []
 iterations = []
 bins = []
-min_iterations = 25
+min_iterations = args.final_iterations
 
-if args.output == "affine" or args.output == "multilevel-halving":
+if args.output == "affine" or args.output == "multilevel-halving" and args.final_iterations != 25:
   min_iterations = 50
 
 # Converter
