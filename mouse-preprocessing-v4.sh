@@ -107,7 +107,7 @@ antsRegistration --dimensionality 3 --verbose --minc \
   --shrink-factors 5x4x3x2x1x1 \
   --smoothing-sigmas 0.169864360058x0.135891488046x0.101918616035x0.067945744023x0.0339728720115x0mm \
   --masks [ ${fixedmask},${movingmask} ]
-  
+
 #Resample mask
 antsApplyTransforms -d 3 -i ${fixedmask} -r ${movingfile} -t [${tmpdir}/reg0_GenericAffine.xfm,1] \
   -n GenericLabel --verbose -o ${tmpdir}/mask.mnc
@@ -152,12 +152,5 @@ mincresample -tfm_input_sampling -transform ${tmpdir}/lsq6_invert.xfm ${tmpdir}/
 mincmath -clamp -const2 0 $(mincstats -quiet -max ${tmpdir}/lsq6.mnc) ${tmpdir}/lsq6.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6.mnc
 
 mincresample -transform ${tmpdir}/lsq6_invert.xfm  -like $(dirname ${output})/$(basename ${output} .mnc)_lsq6.mnc -keep -near -labels ${tmpdir}/weight.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6_mask.mnc
-
-#antsApplyTransforms -d 3 -i ${tmpdir}/N4.mnc -r ${fixedfile} -t ${tmpdir}/reg0_GenericAffine.xfm \
-#  -n BSpline[5] --verbose -o ${tmpdir}/DSUQE.mnc
-
-#mincmath -clamp -const2 0 $(mincstats -max -quiet ${tmpdir}/DSUQE.mnc) ${tmpdir}/DSUQE.mnc $(dirname ${output})/$(basename ${output} .mnc)_DSUQE.mnc
-
-
 
 rm -rf ${tmpdir}
