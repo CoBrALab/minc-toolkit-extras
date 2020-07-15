@@ -10,9 +10,8 @@
 from __future__ import division, print_function
 
 import argparse
-import numpy as np
+import math
 import sys
-
 
 def RepresentsInt(s):
     try:
@@ -65,7 +64,7 @@ else:
   min_iterations = args.final_iterations
 
 # Converter
-fwhm_to_sigma = 2 * np.sqrt(2 * np.log(2))
+fwhm_to_sigma = 2 * math.sqrt(2 * math.log(2))
 
 # Inital resolution scaling
 if args.start_scale:
@@ -74,30 +73,30 @@ else:
   start_shrink = max_size / 28 / min_resolution
 
 if isinstance(step_size, int):
-    for shrink_scale in range(int(np.around(start_shrink)), 0, -1 * step_size):
+    for shrink_scale in range(int(round(start_shrink)), 0, -1 * step_size):
         shrinks.append(
-            str(int(min(max_size / 32 / min_resolution, max(1.0, np.around(shrink_scale))))))
+            str(int(min(max_size / 32 / min_resolution, max(1.0, round(shrink_scale))))))
         blurs.append(str(shrink_scale * 2 * min_resolution / fwhm_to_sigma))
         iterations.append(str(min(2025, int(min_iterations * 3**(max(0,shrink_scale - 1))))))
         bins.append(
-            str(int(np.around((max(32, 256 / max(1, int(shrinks[-1]))))))))
+            str(int(round((max(32, 256 / max(1, int(shrinks[-1]))))))))
 else:
     blur_scale = start_shrink * 2 * min_resolution
     shrink_scale = start_shrink
     while (blur_scale > 0.5 * min_resolution):
         shrinks.append(
-            str(int(min(max_size / 32 / min_resolution, max(1.0, np.around(shrink_scale))))))
+            str(int(min(max_size / 32 / min_resolution, max(1.0, round(shrink_scale))))))
         blurs.append(str(blur_scale / fwhm_to_sigma))
         iterations.append(str(min(2025, int(min_iterations * 3**(max(0,shrink_scale-1))))))
         bins.append(
-            str(int(np.around((max(32, 256 / max(1,  int(shrinks[-1]))))))))
+            str(int(round((max(32, 256 / max(1,  int(shrinks[-1]))))))))
         blur_scale = blur_scale / 2
         shrink_scale = shrink_scale / 2
 
 shrinks.append("1")
 blurs.append("0")
 iterations.append(str(min_iterations))
-bins.append(str(int(np.around((max(32, 256 / max(1, 1 * min_resolution)))))))
+bins.append(str(int(round((max(32, 256 / max(1, 1 * min_resolution)))))))
 
 if args.output == 'affine':
     transforms = ["--transform Translation[ 0.1 ]",
@@ -111,11 +110,11 @@ if args.output == 'affine':
     repeatmask = [ False,
                    False,
                    "--masks [ ${fixedmask},${movingmask} ]",
-                   False ] 
+                   False ]
 
     slicestart = 0
-    slicesize = max(3,int(np.around(len(shrinks) / (len(transforms)) * 1.5)))
-    
+    slicesize = max(3,int(round(len(shrinks) / (len(transforms)) * 1.5)))
+
     for i, transform in enumerate(transforms):
         if i == len(transforms)-1:
           print(transform, end=' \\\n')
@@ -140,7 +139,7 @@ if args.output == 'affine':
             print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
             print("\t" + repeatmask[i], end=' \\\n')
           slicestart += int(np.floor(slicesize / 2))
-          
+
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
     print("--reg-shrinks {}".format("x".join(shrinks)), end=' \\\n')
