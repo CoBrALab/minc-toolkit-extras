@@ -59,9 +59,7 @@ iterations = []
 bins = []
 
 if args.output == "affine" or args.output == "multilevel-halving" and args.final_iterations == 25:
-  min_iterations = 50
-else:
-  min_iterations = args.final_iterations
+  args.final_iterations = 50
 
 # Converter
 fwhm_to_sigma = 2 * math.sqrt(2 * math.log(2))
@@ -77,7 +75,7 @@ if isinstance(step_size, int):
         shrinks.append(
             str(int(min(max_size / 32 / min_resolution, max(1.0, round(shrink_scale))))))
         blurs.append(str(shrink_scale * 2 * min_resolution / fwhm_to_sigma))
-        iterations.append(str(min(2025, int(min_iterations * 3**(max(0,shrink_scale - 1))))))
+        iterations.append(str(min(500, int(args.final_iterations * 3**(max(0,shrink_scale - 1))))))
         bins.append(
             str(int(round((max(32, 256 / max(1, int(shrinks[-1]))))))))
 else:
@@ -87,7 +85,7 @@ else:
         shrinks.append(
             str(int(min(max_size / 32 / min_resolution, max(1.0, round(shrink_scale))))))
         blurs.append(str(blur_scale / fwhm_to_sigma))
-        iterations.append(str(min(2025, int(min_iterations * 3**(max(0,shrink_scale-1))))))
+        iterations.append(str(min(500, int(args.final_iterations * 3**(max(0,shrink_scale-1))))))
         bins.append(
             str(int(round((max(32, 256 / max(1,  int(shrinks[-1]))))))))
         blur_scale = blur_scale / 2
@@ -95,7 +93,7 @@ else:
 
 shrinks.append("1")
 blurs.append("0")
-iterations.append(str(min_iterations))
+iterations.append(str(args.final_iterations))
 bins.append(str(int(round((max(32, 256 / max(1, 1 * min_resolution)))))))
 
 if args.output == 'affine':
