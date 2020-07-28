@@ -177,7 +177,12 @@ antsRegistration --dimensionality 3 --verbose --minc \
   --output [ ${_arg_outputbasename} ] \
   --use-histogram-matching 1 \
   --initial-moving-transform [ ${fixedfile},${movingfile},1 ] \
-  $(eval echo ${steps_affine}) \
+  $(eval echo ${steps_affine})
+
+antsRegistration --dimensionality 3 --verbose --minc \
+  --output [ ${_arg_outputbasename} ] \
+  --use-histogram-matching 1 \
+  --initial-moving-transform ${_arg_outputbasename}0_GenericAffine.xfm \
   --transform SyN[ 0.1,3,0 ] \
   --metric CC[ ${fixedfile},${movingfile},1,4,None ] \
   $(eval echo ${steps_syn}) \
