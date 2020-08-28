@@ -34,7 +34,7 @@ parser.add_argument(
 parser.add_argument(
     '--final-iterations', help='total number of iterations at lowest scale', type=int, default=25)
 parser.add_argument(
-    '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving'])
+    '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine'])
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
@@ -88,7 +88,7 @@ else:
         blur_scale = blur_scale / 2
         shrink_scale = shrink_scale / 2
 
-if args.output == 'affine':
+if args.output == 'exhaustive-affine':
     transforms = ["--transform Translation[ 0.1 ]",
                   "--transform Rigid[ 0.1 ]",
                   "--transform Similarity[ 0.1 ]",
@@ -102,33 +102,20 @@ if args.output == 'affine':
                    "--masks [ ${fixedmask},${movingmask} ]",
                    False ]
 
-    slicestart = 0
-    slicesize = max(3,int(round(len(shrinks) / (len(transforms)) * 1.5)))
-
     for i, transform in enumerate(transforms):
-        if i == len(transforms)-1:
-          print(transform, end=' \\\n')
-          print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-          print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:]), args.convergence), end=' \\\n')
-          print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:])), end=' \\\n')
-          print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:])), end=' \\\n')
-          print("\t" + masks[i], end= ' ')
-          slicestart += int(np.floor(slicesize / 2))
-        else:
-          print(transform, end=' \\\n')
-          print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-          print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:slicestart + slicesize]), args.convergence), end=' \\\n')
-          print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
-          print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
-          print("\t" + masks[i], end=' \\\n')
-          if repeatmask[i]:
-            print(transform, end=' \\\n')
-            print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-            print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart:slicestart + slicesize]), args.convergence), end=' \\\n')
-            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart:slicestart + slicesize])), end=' \\\n')
-            print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart:slicestart + slicesize])), end=' \\\n')
-            print("\t" + repeatmask[i], end=' \\\n')
-          slicestart += int(np.floor(slicesize / 2))
+      print(transform, end=' \\\n')
+      print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+      print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+      print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+      print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+      print("\t" + masks[i], end=' \\\n')
+      if repeatmask[i]:
+        print(transform, end=' \\\n')
+        print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+        print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+        print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+        print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+        print("\t" + repeatmask[i], end=' \\\n')
 
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
@@ -145,7 +132,7 @@ elif args.output == 'generic':
     print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
     print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
-elif args.output == "multilevel-halving":
+elif args.output == "multilevel-halving" or "affine":
     transforms = ["--transform Translation[ 0.1 ]",
                   "--transform Rigid[ 0.1 ]",
                   "--transform Similarity[ 0.1 ]",
