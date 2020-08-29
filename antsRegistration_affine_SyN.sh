@@ -141,7 +141,6 @@ assign_positional_args 1 "${_positionals[@]}"
 # [ <-- needed because of Argbash
 
 set -euo pipefail
-set -x
 tmpdir=$(mktemp -d)
 
 if [[ -s ${_arg_outputbasename}0_GenericAffine.xfm && ! ${_arg_clobber} == "on" ]]; then
@@ -190,7 +189,7 @@ antsRegistration --dimensionality 3 --verbose --minc \
 
 
 if [[ ${_arg_resampled_output} ]]; then
-  antsApplyTransforms -d 3 -i ${movingfile} -r ${fixedfile} -t ${outputbasename}1_NL.xfm -t ${outputbasename}0_GenericAffine.xfm -o ${tmpdir}/resample.mnc -n BSpline[5] --verbose
+  antsApplyTransforms -d 3 -i ${movingfile} -r ${fixedfile} -t ${_arg_outputbasename}1_NL.xfm -t ${_arg_outputbasename}0_GenericAffine.xfm -o ${tmpdir}/resample.mnc -n BSpline[5] --verbose
   mincmath -clobber -clamp -const2 0 $(mincstats -quiet -max ${tmpdir}/resample.mnc) ${tmpdir}/resample.mnc ${_arg_resampled_output}
 fi
 
