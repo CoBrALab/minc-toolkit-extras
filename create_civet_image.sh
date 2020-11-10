@@ -586,7 +586,7 @@ filename=$(basename $leftstatmap)
 extension="${filename##*.}"
 
 if [[ $(head -1 $leftbrain | tr " " "\n" | tail -1) == 40962 ]]; then
-  __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET-CC-mask.txt"
+  __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET_2.0_mask_left_short.txt"
 else
   __mask="${QUARANTINE_PATH}/resources/CIVET/CIVET_2.0_mask_left.txt"
 fi
