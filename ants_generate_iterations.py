@@ -34,7 +34,9 @@ parser.add_argument(
 parser.add_argument(
     '--final-iterations', help='total number of iterations at lowest scale', type=int, default=25)
 parser.add_argument(
-    '--output', help='type of output to generate', default='generic', choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine'])
+    '--output', help='type of output to generate', default='generic',
+      choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine',
+                'lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity'])
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
@@ -132,19 +134,31 @@ elif args.output == 'generic':
     print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
     print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
-elif args.output == "multilevel-halving" or "affine":
-    transforms = ["--transform Translation[ 0.1 ]",
-                  "--transform Rigid[ 0.1 ]",
-                  "--transform Similarity[ 0.1 ]",
-                  "--transform Affine[ 0.1 ]"]
-    masks = ["--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ ${fixedmask},${movingmask} ]" ]
+else:
+    if args.output in ["multilevel-halving", "affine", "lsq12"]:
+      transforms = ["--transform Translation[ 0.1 ]",
+                    "--transform Rigid[ 0.1 ]",
+                    "--transform Similarity[ 0.1 ]",
+                    "--transform Affine[ 0.1 ]"]
+    elif args.output in ["lsq9","similarity"]:
+      transforms = ["--transform Translation[ 0.1 ]",
+                    "--transform Rigid[ 0.1 ]",
+                    "--transform Similarity[ 0.1 ]",
+                    "--transform Similarity[ 0.1 ]"]
+    elif args.output in ["lsq6","rigid"]:
+      transforms = ["--transform Translation[ 0.1 ]",
+                    "--transform Rigid[ 0.1 ]",
+                    "--transform Rigid[ 0.1 ]",
+                    "--transform Rigid[ 0.1 ]"]
+
     repeatmask = [ False,
                    False,
                    "--masks [ ${fixedmask},${movingmask} ]",
                    False ]
+    masks = ["--masks [ NOMASK,NOMASK ]",
+             "--masks [ NOMASK,NOMASK ]",
+             "--masks [ NOMASK,NOMASK ]",
+             "--masks [ ${fixedmask},${movingmask} ]" ]
     slicestart = [ 0,
                    int(round(0.25*len(blurs))),
                    int(round(0.50*len(blurs))),
