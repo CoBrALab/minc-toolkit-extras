@@ -1,16 +1,13 @@
 #!/usr/bin/env python
-import sys
 from optparse import OptionParser
 import warnings
 import SimpleITK as sitk
-import os
 import numpy as np
 from scipy.optimize import curve_fit
-
-
 import miniutils
 
 warnings.filterwarnings("error")
+
 
 def model(t, s0, t2star):
     return s0 * np.exp(-t / t2star)
@@ -46,7 +43,6 @@ if __name__ == "__main__":
     s0_outfilename = args[-2]
     t2star_outfilename = args[-1]
 
-
     echos = np.array([float(s) for s in args[0].split()], dtype=np.float64)
     mask = args[1]
 
@@ -69,25 +65,6 @@ if __name__ == "__main__":
     results = np.asarray(results)
     s0_est = results[:, 0]
     t2star_est = results[:, 1]
-
-    # s0_est = np.zeros(img_dim[0] * img_dim[1] * img_dim[2], dtype=np.float64)
-    # t2star_est = np.zeros(img_dim[0] * img_dim[1] * img_dim[2], dtype=np.float64)
-    # offset_est = np.zeros(img_dim[0] * img_dim[1] * img_dim[2], dtype=np.float64)
-    # for voxel in tqdm(range(inputdata.shape[1])):
-    #     try:
-    #         if maskdata[voxel] > 0:
-    #             popt, _ = curve_fit(model, echos,
-    #                         inputdata[:, voxel],
-    #                         p0=[350,0.05,0])
-    #             s0_est[voxel] = popt[0]
-    #             t2star_est[voxel] = popt[1]
-    #             offset_est[voxel] = popt[2]
-    #         else:
-    #             s0_est[voxel] = 0
-    #             t2star_est[voxel] = 0
-    #             offset_est[voxel] = 0
-    #     except:
-    #         pass
 
     s0_est = sitk.GetImageFromArray(np.clip(s0_est.reshape(img_dim), 0, 1000))
     s0_est.CopyInformation(maskimage)
