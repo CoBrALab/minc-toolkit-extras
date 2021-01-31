@@ -247,24 +247,23 @@ fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for
 steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --output ${_arg_linear_type})
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution})
 
+if [[ "${_arg_initial_transform}" != "NONE" ]]; then
+  initial_transform=${_arg_initial_transform}
+else
+  initial_transform="[ ${fixedfile},${movingfile},1 ]"
+fi
+
 if [[ ${_arg_skip_affine} == "off" ]]; then
-  if [[ "${_arg_initial_transform}" != "NONE" ]]; then
     antsRegistration --dimensionality 3 --verbose --minc \
       --output [ ${_arg_outputbasename} ] \
       --use-histogram-matching 1 \
-      --initial-moving-transform "${_arg_initial_transform}" \
+      --initial-moving-transform ${initial_transform} \
       $(eval echo ${steps_affine})
-  else
-    antsRegistration --dimensionality 3 --verbose --minc \
-      --output [ ${_arg_outputbasename} ] \
-      --use-histogram-matching 1 \
-      --initial-moving-transform [ ${fixedfile},${movingfile},1 ] \
-      $(eval echo ${steps_affine})
-  fi
 else
   if [[ "${_arg_initial_transform}" != "NONE" ]]; then
     cp -f "${_arg_initial_transform}" ${_arg_outputbasename}0_GenericAffine.xfm
   else
+    #Generate identity transform
     param2xfm ${_arg_outputbasename}0_GenericAffine.xfm
   fi
 fi
