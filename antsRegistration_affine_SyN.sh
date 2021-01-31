@@ -9,6 +9,8 @@
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial affine transform],[NONE])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
+# ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
+# ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[on])
 # ARG_OPTIONAL_BOOLEAN([skip-affine],[],[Skip the affine stage])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
 # ARG_OPTIONAL_BOOLEAN([fast],[f],[Run fast SyN registration])
@@ -57,6 +59,8 @@ _arg_fixed_mask="NOMASK"
 _arg_resampled_output=
 _arg_initial_transform="NONE"
 _arg_linear_type="affine"
+_arg_convergence="1e-6"
+_arg_histogram_matching="on"
 _arg_skip_affine="off"
 _arg_skip_nonlinear="off"
 _arg_fast="off"
@@ -67,7 +71,7 @@ _arg_verbose="on"
 print_help()
 {
 	printf '%s\n' "The general script's help msg"
-	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--convergence <arg>] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
 	printf '\t%s\n' "<movingfile>: The moving image"
 	printf '\t%s\n' "<fixedfile>: The fixed image"
 	printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -77,6 +81,8 @@ print_help()
 	printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
 	printf '\t%s\n' "--initial-transform: Initial affine transform (default: 'NONE')"
 	printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
+	printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
+	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (on by default)"
 	printf '\t%s\n' "--skip-affine, --no-skip-affine: Skip the affine stage (off by default)"
 	printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
 	printf '\t%s\n' "-f, --fast, --no-fast: Run fast SyN registration (off by default)"
@@ -142,6 +148,18 @@ parse_commandline()
 				;;
 			--linear-type=*)
 				_arg_linear_type="$(lineargroup "${_key##--linear-type=}" "linear-type")" || exit 1
+				;;
+			--convergence)
+				test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+				_arg_convergence="$2"
+				shift
+				;;
+			--convergence=*)
+				_arg_convergence="${_key##--convergence=}"
+				;;
+			--no-histogram-matching|--histogram-matching)
+				_arg_histogram_matching="on"
+				test "${1:0:5}" = "--no-" && _arg_histogram_matching="off"
 				;;
 			--no-skip-affine|--skip-affine)
 				_arg_skip_affine="on"
@@ -270,6 +288,14 @@ else
   verbose=""
 fi
 
+#Enable histogram matching
+if [[ ${_arg_histogram_matching} == "on" ]]; then
+  _arg_histogram_matching=1
+else
+  _arg_histogram_matching=0
+fi
+
+
 movingfile=${_arg_movingfile}
 fixedfile=${_arg_fixedfile}
 
@@ -279,8 +305,8 @@ fixedmask=${_arg_fixed_mask}
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]]))")
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
 
-steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --output ${_arg_linear_type})
-steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution})
+steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type})
+steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence})
 
 if [[ "${_arg_initial_transform}" != "NONE" ]]; then
   initial_transform=${_arg_initial_transform}
@@ -291,7 +317,7 @@ fi
 if [[ ${_arg_skip_affine} == "off" ]]; then
     antsRegistration --dimensionality 3 ${verbose} ${minc_mode} \
       --output [ ${_arg_outputbasename} ] \
-      --use-histogram-matching 1 \
+      --use-histogram-matching ${_arg_histogram_matching} \
       --initial-moving-transform ${initial_transform} \
       $(eval echo ${steps_affine})
 else
@@ -316,7 +342,7 @@ fi
 if [[ ${_arg_skip_nonlinear} == "off" ]]; then
   antsRegistration --dimensionality 3 ${verbose} ${minc_mode} \
     --output [ ${_arg_outputbasename} ] \
-    --use-histogram-matching 1 \
+    --use-histogram-matching ${_arg_histogram_matching} \
     --initial-moving-transform "${second_stage_initial}" \
     --transform SyN[ 0.1,3,0 ] \
     ${syn_metric} \
