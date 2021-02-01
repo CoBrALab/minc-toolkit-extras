@@ -302,10 +302,10 @@ else
   _arg_histogram_matching=0
 fi
 
-if [[ ${_arg_mask-extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
-  ImageMath ${tmpdir}/fixed_extracted.nii.gz m ${_arg_fixedfile} ${_arg_fixed_mask}
-  ImageMath ${tmpdir}/moving_extracted.nii.gz m ${_arg_movingfile} ${_arg_moving_mask}
-  movingfile=${tmpdir}/moving_extracted.nii
+if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
+  ImageMath 3 ${tmpdir}/fixed_extracted.nii.gz m ${_arg_fixedfile} ${_arg_fixed_mask}
+  ImageMath 3 ${tmpdir}/moving_extracted.nii.gz m ${_arg_movingfile} ${_arg_moving_mask}
+  movingfile=${tmpdir}/moving_extracted.nii.gz
   fixedfile=${tmpdir}/fixed_extracted.nii.gz
   movingmask=NOMASK
   fixedmask=NOMASK
