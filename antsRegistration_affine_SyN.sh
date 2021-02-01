@@ -10,6 +10,7 @@
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
+# ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[on])
 # ARG_OPTIONAL_BOOLEAN([skip-affine],[],[Skip the affine stage])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
@@ -60,6 +61,7 @@ _arg_resampled_output=
 _arg_initial_transform="NONE"
 _arg_linear_type="affine"
 _arg_convergence="1e-6"
+_arg_mask_extract="off"
 _arg_histogram_matching="on"
 _arg_skip_affine="off"
 _arg_skip_nonlinear="off"
@@ -71,7 +73,7 @@ _arg_verbose="on"
 print_help()
 {
 	printf '%s\n' "The general script's help msg"
-	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--convergence <arg>] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--convergence <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
 	printf '\t%s\n' "<movingfile>: The moving image"
 	printf '\t%s\n' "<fixedfile>: The fixed image"
 	printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -82,6 +84,7 @@ print_help()
 	printf '\t%s\n' "--initial-transform: Initial affine transform (default: 'NONE')"
 	printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
 	printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
+	printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
 	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (on by default)"
 	printf '\t%s\n' "--skip-affine, --no-skip-affine: Skip the affine stage (off by default)"
 	printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
@@ -156,6 +159,10 @@ parse_commandline()
 				;;
 			--convergence=*)
 				_arg_convergence="${_key##--convergence=}"
+				;;
+			--no-mask-extract|--mask-extract)
+				_arg_mask_extract="on"
+				test "${1:0:5}" = "--no-" && _arg_mask_extract="off"
 				;;
 			--no-histogram-matching|--histogram-matching)
 				_arg_histogram_matching="on"
@@ -295,12 +302,19 @@ else
   _arg_histogram_matching=0
 fi
 
-
-movingfile=${_arg_movingfile}
-fixedfile=${_arg_fixedfile}
-
-movingmask=${_arg_moving_mask}
-fixedmask=${_arg_fixed_mask}
+if [[ ${_arg_mask-extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
+  ImageMath ${tmpdir}/fixed_extracted.nii.gz m ${_arg_fixedfile} ${_arg_fixed_mask}
+  ImageMath ${tmpdir}/moving_extracted.nii.gz m ${_arg_movingfile} ${_arg_moving_mask}
+  movingfile=${tmpdir}/moving_extracted.nii
+  fixedfile=${tmpdir}/fixed_extracted.nii.gz
+  movingmask=NOMASK
+  fixedmask=NOMASK
+else
+  movingfile=${_arg_movingfile}
+  fixedfile=${_arg_fixedfile}
+  movingmask=${_arg_moving_mask}
+  fixedmask=${_arg_fixed_mask}
+fi
 
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]]))")
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
@@ -352,9 +366,9 @@ fi
 
 if [[ ${_arg_resampled_output} ]]; then
   if [[ ${_arg_skip_nonlinear} == "off" ]]; then
-    antsApplyTransforms -d 3 -i ${movingfile} -r ${fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${verbose}
+    antsApplyTransforms -d 3 -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${verbose}
   else
-    antsApplyTransforms -d 3 -i ${movingfile} -r ${fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${verbose}
+    antsApplyTransforms -d 3 -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${verbose}
   fi
   ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz" 1e-12 Inf 1 0
   ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz"
