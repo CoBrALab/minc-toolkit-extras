@@ -316,8 +316,18 @@ else
   fixedmask=${_arg_fixed_mask}
 fi
 
+
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]]))")
-fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
+
+#Calculate Maximum FOV using the size of the fixed image
+#fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
+
+#Calculate Maximum FOV using the foreground/background of the fixed image
+ThresholdImage 3 ${fixedfile} ${tmpdir}/bgmask.nii.gz 1e-12 Inf 1 0
+ThresholdImage 3 ${fixedfile} ${tmpdir}/otsu.nii.gz Otsu 4 ${tmpdir}/bgmask.nii.gz
+ThresholdImage 3 ${tmpdir}/otsu.nii.gz ${tmpdir}/otsu.nii.gz 2 Inf 1 0
+LabelGeometryMeasures 3 ${tmpdir}/otsu.nii.gz none ${tmpdir}/geometry.csv
+fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]])]))")
 
 steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type})
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence})
