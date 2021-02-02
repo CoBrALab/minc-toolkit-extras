@@ -323,10 +323,10 @@ fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x
 #fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
 
 #Calculate Maximum FOV using the foreground/background of the fixed image
-ThresholdImage 3 ${fixedfile} ${tmpdir}/bgmask.nii.gz 1e-12 Inf 1 0
-ThresholdImage 3 ${fixedfile} ${tmpdir}/otsu.nii.gz Otsu 4 ${tmpdir}/bgmask.nii.gz
-ThresholdImage 3 ${tmpdir}/otsu.nii.gz ${tmpdir}/otsu.nii.gz 2 Inf 1 0
-LabelGeometryMeasures 3 ${tmpdir}/otsu.nii.gz none ${tmpdir}/geometry.csv
+ThresholdImage 3 ${fixedfile} ${tmpdir}/bgmask.mnc 1e-12 Inf 1 0
+ThresholdImage 3 ${fixedfile} ${tmpdir}/otsu.mnc Otsu 4 ${tmpdir}/bgmask.mnc
+ThresholdImage 3 ${tmpdir}/otsu.mnc ${tmpdir}/otsu.mnc 2 Inf 1 0
+LabelGeometryMeasures 3 ${tmpdir}/otsu.mnc none ${tmpdir}/geometry.csv
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]])]))")
 
 steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type})
@@ -346,7 +346,7 @@ if [[ ${_arg_skip_affine} == "off" ]]; then
       $(eval echo ${steps_affine})
 else
   if [[ "${_arg_initial_transform}" != "NONE" ]]; then
-    cp -f "${_arg_initial_transform}" "${second_stage_initial}"
+    cp -f "${_arg_initial_transform}" "${second_stage_initial}" || true
   else
     if [[ -n ${minc_mode} ]]; then
       #Generate identity transform
@@ -380,8 +380,8 @@ if [[ ${_arg_resampled_output} ]]; then
   else
     antsApplyTransforms -d 3 -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${verbose}
   fi
-  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz" 1e-12 Inf 1 0
-  ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz"
+  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.mnc" 1e-12 Inf 1 0
+  ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.mnc"
 fi
 
 
