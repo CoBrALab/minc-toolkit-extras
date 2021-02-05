@@ -12,7 +12,7 @@
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
-# ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[on])
+# ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_BOOLEAN([skip-affine],[],[Skip the affine stage])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
 # ARG_OPTIONAL_BOOLEAN([fast],[f],[Run fast SyN registration])
@@ -64,7 +64,7 @@ _arg_linear_type="affine"
 _arg_close="off"
 _arg_convergence="1e-6"
 _arg_mask_extract="off"
-_arg_histogram_matching="on"
+_arg_histogram_matching="off"
 _arg_skip_affine="off"
 _arg_skip_nonlinear="off"
 _arg_fast="off"
@@ -88,7 +88,7 @@ print_help()
 	printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
 	printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
 	printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
-	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (on by default)"
+	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
 	printf '\t%s\n' "--skip-affine, --no-skip-affine: Skip the affine stage (off by default)"
 	printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
 	printf '\t%s\n' "-f, --fast, --no-fast: Run fast SyN registration (off by default)"
