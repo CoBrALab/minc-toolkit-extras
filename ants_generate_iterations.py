@@ -40,6 +40,8 @@ parser.add_argument(
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
+parser.add_argument(
+    '--close', help='images are already close, skip large scales of pyramid for affine', action='store_true')
 
 args = parser.parse_args()
 
@@ -105,19 +107,22 @@ if args.output == 'exhaustive-affine':
                    False ]
 
     for i, transform in enumerate(transforms):
-      print(transform, end=' \\\n')
-      print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-      print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
-      print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-      print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
-      print("\t" + masks[i], end=' \\\n')
-      if repeatmask[i]:
-        print(transform, end=' \\\n')
-        print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-        print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
-        print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-        print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
-        print("\t" + repeatmask[i], end=' \\\n')
+        if args.close and i < 2:
+            pass
+        else:
+          print(transform, end=' \\\n')
+          print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+          print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+          print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+          print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+          print("\t" + masks[i], end=' \\\n')
+          if repeatmask[i]:
+            print(transform, end=' \\\n')
+            print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+            print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+            print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+            print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+            print("\t" + repeatmask[i], end=' \\\n')
 
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
@@ -169,24 +174,27 @@ else:
                    -1]
 
     for i, transform in enumerate(transforms):
-      if i == len(transforms) - 1:
-        print(transform, end=' \\\n')
-        print("\t--metric Mattes[ ${fixedfile},${movingfile},1,64,None ]", end=' \\\n')
-        print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart[i]:]), args.convergence), end=' \\\n')
-        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:])), end=' \\\n')
-        print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:])), end=' \\\n')
-        print("\t" + masks[i], end=' ')
-      else:
-        print(transform, end=' \\\n')
-        print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-        print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence), end=' \\\n')
-        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-        print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
-        print("\t" + masks[i], end=' \\\n')
-        if repeatmask[i]:
-          print(transform, end=' \\\n')
-          print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-          print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence), end=' \\\n')
-          print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-          print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
-          print("\t" + repeatmask[i], end=' \\\n')
+        if args.close and i < 2:
+            pass
+        else:
+          if i == len(transforms) - 1:
+            print(transform, end=' \\\n')
+            print("\t--metric Mattes[ ${fixedfile},${movingfile},1,64,None ]", end=' \\\n')
+            print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart[i]:]), args.convergence), end=' \\\n')
+            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:])), end=' \\\n')
+            print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:])), end=' \\\n')
+            print("\t" + masks[i], end=' ')
+          else:
+            print(transform, end=' \\\n')
+            print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+            print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence), end=' \\\n')
+            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
+            print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
+            print("\t" + masks[i], end=' \\\n')
+            if repeatmask[i]:
+              print(transform, end=' \\\n')
+              print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+              print("\t--convergence [ {},{},10 ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence), end=' \\\n')
+              print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
+              print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
+              print("\t" + repeatmask[i], end=' \\\n')
