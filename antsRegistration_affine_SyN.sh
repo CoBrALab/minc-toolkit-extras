@@ -8,6 +8,7 @@
 # ARG_OPTIONAL_SINGLE([resampled-output],[o],[Output resampled file])
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial affine transform],[NONE])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
+# ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
@@ -60,6 +61,7 @@ _arg_fixed_mask="NOMASK"
 _arg_resampled_output=
 _arg_initial_transform="NONE"
 _arg_linear_type="affine"
+_arg_close="off"
 _arg_convergence="1e-6"
 _arg_mask_extract="off"
 _arg_histogram_matching="on"
@@ -73,7 +75,7 @@ _arg_verbose="on"
 print_help()
 {
 	printf '%s\n' "The general script's help msg"
-	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--convergence <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--convergence <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
 	printf '\t%s\n' "<movingfile>: The moving image"
 	printf '\t%s\n' "<fixedfile>: The fixed image"
 	printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -83,6 +85,7 @@ print_help()
 	printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
 	printf '\t%s\n' "--initial-transform: Initial affine transform (default: 'NONE')"
 	printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
+	printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
 	printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
 	printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
 	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (on by default)"
@@ -151,6 +154,10 @@ parse_commandline()
 				;;
 			--linear-type=*)
 				_arg_linear_type="$(lineargroup "${_key##--linear-type=}" "linear-type")" || exit 1
+				;;
+			--no-close|--close)
+				_arg_close="on"
+				test "${1:0:5}" = "--no-" && _arg_close="off"
 				;;
 			--convergence)
 				test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -329,7 +336,11 @@ ThresholdImage 3 ${tmpdir}/otsu.mnc ${tmpdir}/otsu.mnc 2 Inf 1 0
 LabelGeometryMeasures 3 ${tmpdir}/otsu.mnc none ${tmpdir}/geometry.csv
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]])]))")
 
-steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type})
+if [[ ${_arg_close} == "on" ]]; then
+  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close)
+else
+  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type})
+fi
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence})
 
 if [[ "${_arg_initial_transform}" != "NONE" ]]; then
