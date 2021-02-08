@@ -15,7 +15,8 @@
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_BOOLEAN([skip-affine],[],[Skip the affine stage])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
-# ARG_OPTIONAL_BOOLEAN([fast],[f],[Run fast SyN registration])
+# ARG_OPTIONAL_BOOLEAN([fast],[],[Run fast SyN registration])
+# ARG_OPTIONAL_BOOLEAN([float],[],[Calculate registration using float instead of double])
 # ARG_OPTIONAL_BOOLEAN([clobber],[c],[Overwrite files that already exist])
 # ARG_OPTIONAL_BOOLEAN([verbose],[v],[Run commands verbosely],[on])
 # ARGBASH_GO()
@@ -48,7 +49,7 @@ lineargroup()
 
 begins_with_short_option()
 {
-	local first_option all_short_options='hofcv'
+	local first_option all_short_options='hocv'
 	first_option="${1:0:1}"
 	test "$all_short_options" = "${all_short_options/$first_option/}" && return 1 || return 0
 }
@@ -68,6 +69,7 @@ _arg_histogram_matching="off"
 _arg_skip_affine="off"
 _arg_skip_nonlinear="off"
 _arg_fast="off"
+_arg_float="off"
 _arg_clobber="off"
 _arg_verbose="on"
 
@@ -75,7 +77,7 @@ _arg_verbose="on"
 print_help()
 {
 	printf '%s\n' "The general script's help msg"
-	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--convergence <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [-f|--(no-)fast] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+	printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--convergence <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] <movingfile> <fixedfile> <outputbasename>\n' "$0"
 	printf '\t%s\n' "<movingfile>: The moving image"
 	printf '\t%s\n' "<fixedfile>: The fixed image"
 	printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -91,7 +93,8 @@ print_help()
 	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
 	printf '\t%s\n' "--skip-affine, --no-skip-affine: Skip the affine stage (off by default)"
 	printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
-	printf '\t%s\n' "-f, --fast, --no-fast: Run fast SyN registration (off by default)"
+	printf '\t%s\n' "--fast, --no-fast: Run fast SyN registration (off by default)"
+	printf '\t%s\n' "--float, --no-float: Calculate registration using float instead of double (off by default)"
 	printf '\t%s\n' "-c, --clobber, --no-clobber: Overwrite files that already exist (off by default)"
 	printf '\t%s\n' "-v, --verbose, --no-verbose: Run commands verbosely (on by default)"
 }
@@ -183,17 +186,13 @@ parse_commandline()
 				_arg_skip_nonlinear="on"
 				test "${1:0:5}" = "--no-" && _arg_skip_nonlinear="off"
 				;;
-			-f|--no-fast|--fast)
+			--no-fast|--fast)
 				_arg_fast="on"
 				test "${1:0:5}" = "--no-" && _arg_fast="off"
 				;;
-			-f*)
-				_arg_fast="on"
-				_next="${_key##-f}"
-				if test -n "$_next" -a "$_next" != "$_key"
-				then
-					{ begins_with_short_option "$_next" && shift && set -- "-f" "-${_next}" "$@"; } || die "The short option '$_key' can't be decomposed to ${_key:0:2} and -${_key:2}, because ${_key:0:2} doesn't accept value and '-${_key:2:1}' doesn't correspond to a short option."
-				fi
+			--no-float|--float)
+				_arg_float="on"
+				test "${1:0:5}" = "--no-" && _arg_float="off"
 				;;
 			-c|--no-clobber|--clobber)
 				_arg_clobber="on"
@@ -309,6 +308,13 @@ else
   _arg_histogram_matching=0
 fi
 
+#Float mode switch for antsRegistration
+if [[ ${_arg_float} == "on" ]]; then
+  _arg_float="--float 1"
+else
+  _arg_float="--float 0"
+fi
+
 if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
   ImageMath 3 ${tmpdir}/fixed_extracted.nii.gz m ${_arg_fixedfile} ${_arg_fixed_mask}
   ImageMath 3 ${tmpdir}/moving_extracted.nii.gz m ${_arg_movingfile} ${_arg_moving_mask}
@@ -350,7 +356,7 @@ else
 fi
 
 if [[ ${_arg_skip_affine} == "off" ]]; then
-    antsRegistration --dimensionality 3 ${verbose} ${minc_mode} \
+    antsRegistration --dimensionality 3 ${verbose} ${minc_mode} ${_arg_float} \
       --output [ ${_arg_outputbasename} ] \
       --use-histogram-matching ${_arg_histogram_matching} \
       --initial-moving-transform ${initial_transform} \
@@ -375,7 +381,7 @@ else
 fi
 
 if [[ ${_arg_skip_nonlinear} == "off" ]]; then
-  antsRegistration --dimensionality 3 ${verbose} ${minc_mode} \
+  antsRegistration --dimensionality 3 ${verbose} ${minc_mode} ${_arg_float} \
     --output [ ${_arg_outputbasename} ] \
     --use-histogram-matching ${_arg_histogram_matching} \
     --initial-moving-transform "${second_stage_initial}" \
