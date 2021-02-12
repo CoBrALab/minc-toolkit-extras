@@ -110,19 +110,27 @@ if args.output == 'exhaustive-affine':
         if args.close and i < 2:
             pass
         else:
-          print(transform, end=' \\\n')
-          print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-          print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
-          print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-          print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
-          print("\t" + masks[i], end=' \\\n')
-          if repeatmask[i]:
-            print(transform, end=' \\\n')
-            print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
-            print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
-            print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-            print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
-            print("\t" + repeatmask[i], end=' \\\n')
+            if i == len(transforms) - 1:
+              print(transform, end=' \\\n')
+              print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+              print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+              print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+              print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+              print("\t" + masks[i], end=' ')
+            else:
+              print(transform, end=' \\\n')
+              print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+              print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+              print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+              print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+              print("\t" + masks[i], end=' \\\n')
+              if repeatmask[i]:
+                print(transform, end=' \\\n')
+                print("\t--metric Mattes[ ${fixedfile},${movingfile},1,32,None ]", end=' \\\n')
+                print("\t--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+                print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+                print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+                print("\t" + repeatmask[i], end=' \\\n')
 
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
