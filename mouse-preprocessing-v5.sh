@@ -157,15 +157,15 @@ mv -f ${tmpdir}/weight2.mnc ${tmpdir}/weight.mnc
 cp ${tmpdir}/weight.mnc $(dirname ${output})/$(basename ${output} .mnc)_mask.mnc
 cp ${tmpdir}/denoise_correct.mnc ${output}
 
-param2xfm $(xfm2param ${tmpdir}/tomodel0_GenericAffine.xfm | grep -E 'scale|shear') ${tmpdir}/scaleshear.xfm
+xfminvert ${tmpdir}/tomodel0_GenericAffine.xfm ${tmpdir}/tomodel0_GenericAffine_invert.xfm
+param2xfm $(xfm2param ${tmpdir}/tomodel0_GenericAffine_invert.xfm | grep -E 'scale|shear') ${tmpdir}/scaleshear.xfm
 xfminvert ${tmpdir}/scaleshear.xfm ${tmpdir}/unscaleshear.xfm
-xfmconcat ${tmpdir}/tomodel0_GenericAffine.xfm ${tmpdir}/unscaleshear.xfm ${tmpdir}/lsq6.xfm
-xfminvert ${tmpdir}/lsq6.xfm ${tmpdir}/lsq6_invert.xfm
+xfmconcat ${tmpdir}/tomodel0_GenericAffine_invert.xfm ${tmpdir}/unscaleshear.xfm ${tmpdir}/lsq6.xfm
 
-mincresample -tfm_input_sampling -transform ${tmpdir}/lsq6_invert.xfm ${tmpdir}/denoise_correct.mnc ${tmpdir}/lsq6.mnc
+mincresample -tfm_input_sampling -transform ${tmpdir}/lsq6.xfm ${tmpdir}/denoise_correct.mnc ${tmpdir}/lsq6.mnc
 
 mincmath -clamp -const2 0 $(mincstats -quiet -max ${tmpdir}/lsq6.mnc) ${tmpdir}/lsq6.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6.mnc
 
-mincresample -transform ${tmpdir}/lsq6_invert.xfm  -like $(dirname ${output})/$(basename ${output} .mnc)_lsq6.mnc -keep -near -labels ${tmpdir}/weight.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6_mask.mnc
+mincresample -transform ${tmpdir}/lsq6.xfm  -like $(dirname ${output})/$(basename ${output} .mnc)_lsq6.mnc -keep -near -labels ${tmpdir}/weight.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6_mask.mnc
 
 rm -rf ${tmpdir}
