@@ -149,9 +149,14 @@ elif args.output == 'modelbuild':
     print("-s {}mm".format("x".join(blurs)), end=' ')
 
 elif args.output == 'generic':
-    print("--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
-    print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-    print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
+    if args.close:
+      print("--convergence [ {},{},10 ]".format("x".join(iterations[-3:]), args.convergence), end=' \\\n')
+      print("--shrink-factors {}".format("x".join(shrinks[-3:])), end=' \\\n')
+      print("--smoothing-sigmas {}mm".format("x".join(blurs[-3:])), end=' ')
+    else:
+      print("--convergence [ {},{},10 ]".format("x".join(iterations), args.convergence), end=' \\\n')
+      print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
+      print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
 else:
     if args.output in ["multilevel-halving", "affine", "lsq12"]:
