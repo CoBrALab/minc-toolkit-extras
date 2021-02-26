@@ -32,7 +32,7 @@ parser.add_argument(
 parser.add_argument(
     '--start-scale', help='set starting scale (mm), default calculated from max size', type=float)
 parser.add_argument(
-    '--final-iterations', help='total number of iterations at lowest scale', type=int, default=25)
+    '--final-iterations', help='total number of iterations at lowest scale (doubled for affine)', type=int, default=25)
 parser.add_argument(
     '--output', help='type of output to generate', default='generic',
       choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine',
@@ -64,7 +64,7 @@ shrinks = []
 blurs = []
 iterations = []
 
-if args.output == "affine" or args.output == "multilevel-halving" and args.final_iterations == 25:
+if (args.output in ['affine', 'multilevel-halving', 'exhaustive-affine','lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity']) and args.final_iterations == 25:
   args.final_iterations = 50
 
 # Converter
