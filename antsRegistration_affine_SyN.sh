@@ -382,6 +382,10 @@ else
   fixedmask=${_arg_fixed_mask}
 fi
 
+if [[ ${_arg_fixed_mask} == "NOMASK" && ${_arg_moving_mask} == "NOMASK" ]]; then
+  _no_masks="--no-masks"
+fi
+
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]]))")
 
 #Calculate Maximum FOV using the size of the fixed image
@@ -395,9 +399,9 @@ LabelGeometryMeasures 3 ${tmpdir}/otsu.mnc none ${tmpdir}/geometry.csv
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
 
 if [[ ${_arg_close} == "on" ]]; then
-  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
 else
-  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence})
 
