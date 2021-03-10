@@ -13,7 +13,7 @@
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration],[])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
-# ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization paramters, not checked for correctness],[0.1,3,0])
+# ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_BOOLEAN([skip-affine],[],[Skip the affine stage])
@@ -97,7 +97,7 @@ print_help()
 	printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
 	printf '\t%s\n' "--moving: Additional moving images for multispectral registration (empty by default)"
 	printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
-	printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization paramters, not checked for correctness (default: '0.1,3,0')"
+	printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
 	printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
 	printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
 	printf '\t%s\n' "--skip-affine, --no-skip-affine: Skip the affine stage (off by default)"
