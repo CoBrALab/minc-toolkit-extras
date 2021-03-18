@@ -7,6 +7,7 @@
 #-clobber check
 
 set -euo pipefail
+set -x
 
 image=$1
 label=$2
@@ -21,7 +22,7 @@ if [[ ${label} == "none" ]]; then
     mincresample $(mincbbox -mincresample ${tmpdir}/resample.mnc) ${tmpdir}/resample.mnc ${tmpdir}/label-crop.mnc
     minccalc -expression "1" ${tmpdir}/label-crop.mnc ${tmpdir}/bounding.mnc
 else
-    mincresample $(mincbbox -mincresample ${label}) ${label} ${tmpdir}/label-crop.mnc
+    mincresample -unsigned -int -keep -near -labels $(mincbbox -mincresample ${label} | grep -v Reading) ${label} ${tmpdir}/label-crop.mnc
     minccalc -expression "1" ${tmpdir}/label-crop.mnc ${tmpdir}/bounding.mnc
     #Labelled layers
     create_verify_image -align_com -range_floor 0 ${tmpdir}/$(basename ${image} .mnc)_t.rgb \
