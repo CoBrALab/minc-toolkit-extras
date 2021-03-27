@@ -96,22 +96,40 @@ else:
         blur_scale = blur_scale / 2
         shrink_scale = shrink_scale / 2
 
-if args.output == 'exhaustive-affine':
-    transforms = ["--transform Translation[ ",
-                  "--transform Rigid[ ",
-                  "--transform Similarity[ ",
-                  "--transform Affine[ "]
-    gradient_steps = [ 0.5, 0.33437015, 0.2236068, 0.1 ]
-    gradient_steps_repeat = [ 0.5, 0.33437015, 0.14953488, 0.1 ]
-    masks = ["--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ ${fixedmask},${movingmask} ]" ]
-    repeatmask = [ False,
-                   False,
-                   "--masks [ ${fixedmask},${movingmask} ]",
-                   False ]
+#Setup transforms
+if args.output in ["multilevel-halving", "affine", "lsq12","exhaustive-affine"]:
+  transforms = ["--transform Translation[ ",
+                "--transform Rigid[ ",
+                "--transform Similarity[ ",
+                "--transform Affine[ "]
+elif args.output in ["lsq9","similarity"]:
+  transforms = ["--transform Translation[ ",
+                "--transform Rigid[ ",
+                "--transform Similarity[ ",
+                "--transform Similarity[ "]
+elif args.output in ["lsq6","rigid"]:
+  transforms = ["--transform Translation[ ",
+                "--transform Rigid[ ",
+                "--transform Rigid[ ",
+                "--transform Rigid[ "]
+if not args.close:
+  gradient_steps = [ 0.5, 0.33437015, 0.2236068, 0.1 ]
+  gradient_steps_repeat = [ 0.5, 0.33437015, 0.14953488, 0.1 ]
+else:
+  gradient_steps = [ 0.1, 0.1, 0.1, 0.1 ]
+  gradient_steps_repeat = [ 0.1, 0.1, 0.1, 0.1 ]
 
+masks = ["--masks [ NOMASK,NOMASK ]",
+         "--masks [ NOMASK,NOMASK ]",
+         "--masks [ NOMASK,NOMASK ]",
+         "--masks [ ${fixedmask},${movingmask} ]" ]
+
+repeatmask = [ False,
+               False,
+               "--masks [ ${fixedmask},${movingmask} ]",
+               False ]
+
+if args.output == 'exhaustive-affine':
     for i, transform in enumerate(transforms):
         if args.close and i < 2:
             pass
@@ -166,31 +184,6 @@ elif args.output == 'generic':
       print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
 else:
-    if args.output in ["multilevel-halving", "affine", "lsq12"]:
-      transforms = ["--transform Translation[ ",
-                    "--transform Rigid[ ",
-                    "--transform Similarity[ ",
-                    "--transform Affine[ "]
-    elif args.output in ["lsq9","similarity"]:
-      transforms = ["--transform Translation[ ",
-                    "--transform Rigid[ ",
-                    "--transform Similarity[ ",
-                    "--transform Similarity[ "]
-    elif args.output in ["lsq6","rigid"]:
-      transforms = ["--transform Translation[ ",
-                    "--transform Rigid[ ",
-                    "--transform Rigid[ ",
-                    "--transform Rigid[ "]
-    gradient_steps = [ 0.5, 0.33437015, 0.2236068, 0.1 ]
-    gradient_steps_repeat = [ 0.5, 0.33437015, 0.14953488, 0.1 ]
-    repeatmask = [ False,
-                   False,
-                   "--masks [ ${fixedmask},${movingmask} ]",
-                   False ]
-    masks = ["--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ NOMASK,NOMASK ]",
-             "--masks [ ${fixedmask},${movingmask} ]" ]
     slicestart = [ 0,
                    int(round(0.25*len(blurs))),
                    int(round(0.50*len(blurs))),
