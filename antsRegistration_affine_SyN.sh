@@ -296,6 +296,9 @@ assign_positional_args 1 "${_positionals[@]}"
 # [ <-- needed because of Argbash
 
 set -euo pipefail
+
+export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${THREADS_PER_COMMAND:-$(nproc)}
+
 tmpdir=$(mktemp -d)
 
 function finish {
