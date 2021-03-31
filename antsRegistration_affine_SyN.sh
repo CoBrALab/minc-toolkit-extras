@@ -462,9 +462,9 @@ fi
 
 if [[ ${_arg_resampled_output} ]]; then
   if [[ ${_arg_skip_nonlinear} == "off" ]]; then
-    antsApplyTransforms -d 3 -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+    antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   else
-    antsApplyTransforms -d 3 -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+    antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   fi
   ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz" 1e-12 Inf 1 0
   ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz"
