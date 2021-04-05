@@ -6,7 +6,7 @@
 # ARG_OPTIONAL_SINGLE([moving-mask],[],[Mask for moving image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([resampled-output],[o],[Output resampled file])
-# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial affine transform],[NONE])
+# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial linear transform],[NONE])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration],[])
@@ -16,7 +16,7 @@
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
-# ARG_OPTIONAL_BOOLEAN([skip-affine],[],[Skip the affine stage])
+# ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
 # ARG_OPTIONAL_BOOLEAN([fast],[],[Run fast SyN registration])
 # ARG_OPTIONAL_BOOLEAN([float],[],[Calculate registration using float instead of double])
@@ -74,7 +74,7 @@ _arg_convergence="1e-6"
 _arg_syn_control="0.1,3,0"
 _arg_mask_extract="off"
 _arg_histogram_matching="off"
-_arg_skip_affine="off"
+_arg_skip_linear="off"
 _arg_skip_nonlinear="off"
 _arg_fast="off"
 _arg_float="off"
@@ -86,7 +86,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-affine] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -94,7 +94,7 @@ print_help()
   printf '\t%s\n' "--moving-mask: Mask for moving image (default: 'NOMASK')"
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
   printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
-  printf '\t%s\n' "--initial-transform: Initial affine transform (default: 'NONE')"
+  printf '\t%s\n' "--initial-transform: Initial linear transform (default: 'NONE')"
   printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
@@ -103,7 +103,7 @@ print_help()
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
   printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
-  printf '\t%s\n' "--skip-affine, --no-skip-affine: Skip the affine stage (off by default)"
+  printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
   printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
   printf '\t%s\n' "--fast, --no-fast: Run fast SyN registration (off by default)"
   printf '\t%s\n' "--float, --no-float: Calculate registration using float instead of double (off by default)"
@@ -215,9 +215,9 @@ parse_commandline()
         _arg_histogram_matching="on"
         test "${1:0:5}" = "--no-" && _arg_histogram_matching="off"
         ;;
-      --no-skip-affine|--skip-affine)
-        _arg_skip_affine="on"
-        test "${1:0:5}" = "--no-" && _arg_skip_affine="off"
+      --no-skip-linear|--skip-linear)
+        _arg_skip_linear="on"
+        test "${1:0:5}" = "--no-" && _arg_skip_linear="off"
         ;;
       --no-skip-nonlinear|--skip-nonlinear)
         _arg_skip_nonlinear="on"
@@ -430,11 +430,11 @@ steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max 
 
 if [[ "${_arg_initial_transform}" != "NONE" ]]; then
   initial_transform=${_arg_initial_transform}
-else
+elif [[ ${_arg_skip_linear} == "off" ]]; then
   initial_transform="[ ${fixedfile1},${movingfile1},1 ]"
 fi
 
-if [[ ${_arg_skip_affine} == "off" ]]; then
+if [[ ${_arg_skip_linear} == "off" ]]; then
   antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
     --output [ ${_arg_outputbasename} ] \
     --use-histogram-matching ${_arg_histogram_matching} \
