@@ -328,19 +328,16 @@ trap finish EXIT
 
 #Input checking
 if [[ ( -s ${_arg_outputbasename}0_GenericAffine.xfm || -s ${_arg_outputbasename}0GenericAffine.mat ) && ! ${_arg_clobber} == "on" ]]; then
-  echo "File ${_arg_outputbasename}0_GenericAffine.xfm or ${_arg_outputbasename}0GenericAffine.mat already exists!"
-  exit 1
+  die "File ${_arg_outputbasename}0_GenericAffine.xfm or ${_arg_outputbasename}0GenericAffine.mat already exists!"
 fi
 
 if [[ ( -s ${_arg_outputbasename}1_NL.xfm || -s ${_arg_outputbasename}1Warp.nii.gz ) && ! ${_arg_clobber} == "on" ]]; then
-  echo "File ${_arg_outputbasename}1_NL.xfm or ${_arg_outputbasename}1Warp.nii.gz already exists!"
-  exit 1
+  die "File ${_arg_outputbasename}1_NL.xfm or ${_arg_outputbasename}1Warp.nii.gz already exists!"
 fi
 
 
 if [[ -s ${_arg_resampled_output} && ! ${_arg_clobber} == "on" ]]; then
-  echo "File ${_arg_resampled_output} already exists!"
-  exit 1
+  die "File ${_arg_resampled_output} already exists!"
 fi
 
 if [[ ! ${#_arg_fixed[@]} -eq ${#_arg_moving[@]} ]]; then
