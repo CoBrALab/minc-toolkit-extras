@@ -127,7 +127,7 @@ n3input=${tmpdir}/denoise.mnc
 antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast \
   ${n3input} ${modelfile} ${tmpdir}/tomodel
 
-antsRegistration_affine_SyN.sh --clobber --skip-affine --initial-transform ${tmpdir}/tomodel0_GenericAffine.xfm \
+antsRegistration_affine_SyN.sh --clobber --skip-linear --initial-transform ${tmpdir}/tomodel0_GenericAffine.xfm \
   --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} \
   ${n3input} ${modelfile} ${tmpdir}/tomodel
 
