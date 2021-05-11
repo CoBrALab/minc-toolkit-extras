@@ -372,7 +372,7 @@ else
   minc_mode=""
   second_stage_initial="${_arg_outputbasename}0GenericAffine.mat"
   second_stage_final="${_arg_outputbasename}1Warp.nii.gz"
-  intermediate_resample="${tmpdir}/resample.nii.gz"
+  intermediate_resample="${tmpdir}/resample.h5"
 fi
 
 #Enable verbosity
@@ -397,10 +397,10 @@ else
 fi
 
 if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
-  ImageMath 3 ${tmpdir}/fixed_extracted.nii.gz m ${_arg_fixedfile} ${_arg_fixed_mask}
-  ImageMath 3 ${tmpdir}/moving_extracted.nii.gz m ${_arg_movingfile} ${_arg_moving_mask}
-  movingfile1=${tmpdir}/moving_extracted.nii.gz
-  fixedfile1=${tmpdir}/fixed_extracted.nii.gz
+  ImageMath 3 ${tmpdir}/fixed_extracted.h5 m ${_arg_fixedfile} ${_arg_fixed_mask}
+  ImageMath 3 ${tmpdir}/moving_extracted.h5 m ${_arg_movingfile} ${_arg_moving_mask}
+  movingfile1=${tmpdir}/moving_extracted.h5
+  fixedfile1=${tmpdir}/fixed_extracted.h5
   movingmask=NOMASK
   fixedmask=NOMASK
 else
@@ -426,10 +426,10 @@ fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x
 #fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
 
 #Calculate Maximum FOV using the foreground/background of the fixed image
-ThresholdImage 3 ${fixedfile1} ${tmpdir}/bgmask.nii.gz 1e-12 Inf 1 0
-ThresholdImage 3 ${fixedfile1} ${tmpdir}/otsu.nii.gz Otsu 4 ${tmpdir}/bgmask.nii.gz
-ThresholdImage 3 ${tmpdir}/otsu.nii.gz ${tmpdir}/otsu.nii.gz 2 Inf 1 0
-LabelGeometryMeasures 3 ${tmpdir}/otsu.nii.gz none ${tmpdir}/geometry.csv
+ThresholdImage 3 ${fixedfile1} ${tmpdir}/bgmask.h5 1e-12 Inf 1 0
+ThresholdImage 3 ${fixedfile1} ${tmpdir}/otsu.h5 Otsu 4 ${tmpdir}/bgmask.h5
+ThresholdImage 3 ${tmpdir}/otsu.h5 ${tmpdir}/otsu.h5 2 Inf 1 0
+LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
 
 if [[ ${_arg_close} == "on" ]]; then
@@ -497,8 +497,8 @@ if [[ ${_arg_resampled_output} ]]; then
   else
     antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   fi
-  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz" 1e-12 Inf 1 0
-  ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz"
+  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
+  ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
 fi
 
 # ] <-- needed because of Argbash
