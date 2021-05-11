@@ -321,10 +321,24 @@ export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${THREADS_PER_COMMAND:-$(nproc)}
 
 tmpdir=$(mktemp -d)
 
-function finish {
-  rm -rf "${tmpdir}"
+
+#Setup exit trap for cleanup, don't do if debug
+function finish() {
+    if [[ ${_arg_debug} == "off" ]]; then
+        rm -rf "${tmpdir}"
+    fi
+
 }
 trap finish EXIT
+
+#Add handler for failure to show where things went wrong
+failure() {
+    local lineno=$1
+    local msg=$2
+    echo "Failed at $lineno: $msg"
+}
+trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
+
 
 #Input checking
 if [[ ( -s ${_arg_outputbasename}0_GenericAffine.xfm || -s ${_arg_outputbasename}0GenericAffine.mat ) && ! ${_arg_clobber} == "on" ]]; then
@@ -486,8 +500,5 @@ if [[ ${_arg_resampled_output} ]]; then
   ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz" 1e-12 Inf 1 0
   ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.nii.gz"
 fi
-
-
-rm -rf "${tmpdir}"
 
 # ] <-- needed because of Argbash
