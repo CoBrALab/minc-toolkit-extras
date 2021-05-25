@@ -5,6 +5,7 @@ import SimpleITK as sitk
 import numpy as np
 from scipy.optimize import curve_fit
 import miniutils
+import sys
 
 warnings.filterwarnings("error")
 
@@ -48,6 +49,9 @@ if __name__ == "__main__":
 
     # create an array of volume handles
     input_files = args[2:-2]
+
+    if len(input_files) != len(echos):
+      sys.exit("Error: length of echos specified not equal to number of input files")
 
     maskimage = sitk.ReadImage(mask)
     maskdata = sitk.GetArrayFromImage(maskimage)
