@@ -6,6 +6,7 @@
 # ARG_OPTIONAL_SINGLE([moving-mask],[],[Mask for moving image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([resampled-output],[o],[Output resampled file])
+# ARG_OPTIONAL_SINGLE([resampled-linear-output],[],[Output resampled file with only linear transform])
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial linear transform],[NONE])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
@@ -43,12 +44,12 @@ die()
 
 lineargroup()
 {
-  local _allowed=("rigid" "lsq6" "similarity" "lsq9" "affine" "lsq12" "exhaustive-affine") _seeking="$1"
-  for element in "${_allowed[@]}"
-  do
-    test "$element" = "$_seeking" && echo "$element" && return 0
-  done
-  die "Value '$_seeking' (of argument '$2') doesn't match the list of allowed values: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine'" 4
+	local _allowed=("rigid" "lsq6" "similarity" "lsq9" "affine" "lsq12" "exhaustive-affine") _seeking="$1"
+	for element in "${_allowed[@]}"
+	do
+		test "$element" = "$_seeking" && echo "$element" && return 0
+	done
+	die "Value '$_seeking' (of argument '$2') doesn't match the list of allowed values: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine'" 4
 }
 
 
@@ -65,6 +66,7 @@ _positionals=()
 _arg_moving_mask="NOMASK"
 _arg_fixed_mask="NOMASK"
 _arg_resampled_output=
+_arg_resampled_linear_output=
 _arg_initial_transform="NONE"
 _arg_linear_type="affine"
 _arg_close="off"
@@ -86,7 +88,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -94,6 +96,7 @@ print_help()
   printf '\t%s\n' "--moving-mask: Mask for moving image (default: 'NOMASK')"
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
   printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
+  printf '\t%s\n' "--resampled-linear-output: Output resampled file with only linear transform (no default)"
   printf '\t%s\n' "--initial-transform: Initial linear transform (default: 'NONE')"
   printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
@@ -154,6 +157,14 @@ parse_commandline()
         ;;
       -o*)
         _arg_resampled_output="${_key##-o}"
+        ;;
+      --resampled-linear-output)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_resampled_linear_output="$2"
+        shift
+        ;;
+      --resampled-linear-output=*)
+        _arg_resampled_linear_output="${_key##--resampled-linear-output=}"
         ;;
       --initial-transform)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -341,17 +352,14 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 
 #Input checking
-if [[ ( -s ${_arg_outputbasename}0_GenericAffine.xfm || -s ${_arg_outputbasename}0GenericAffine.mat ) && ! ${_arg_clobber} == "on" ]]; then
-  die "File ${_arg_outputbasename}0_GenericAffine.xfm or ${_arg_outputbasename}0GenericAffine.mat already exists!"
-fi
-
-if [[ ( -s ${_arg_outputbasename}1_NL.xfm || -s ${_arg_outputbasename}1Warp.nii.gz ) && ! ${_arg_clobber} == "on" ]]; then
-  die "File ${_arg_outputbasename}1_NL.xfm or ${_arg_outputbasename}1Warp.nii.gz already exists!"
-fi
-
-
-if [[ -s ${_arg_resampled_output} && ! ${_arg_clobber} == "on" ]]; then
-  die "File ${_arg_resampled_output} already exists!"
+if [[ "${_arg_clobber}" == "off" ]]; then
+  for file in ${_arg_outputbasename}0_GenericAffine.xfm ${_arg_outputbasename}0GenericAffine.mat \
+              ${_arg_outputbasename}1_NL.xfm ${_arg_outputbasename}1Warp.nii.gz \
+              ${_arg_resampled_output} ${_arg_resampled_linear_output}; do
+    if [[ -s "${file}" ]]; then
+      die "File ${file} already exists and --clobber not specified!"
+    fi
+  done
 fi
 
 if [[ ! ${#_arg_fixed[@]} -eq ${#_arg_moving[@]} ]]; then
@@ -478,6 +486,13 @@ else
     syn_metric+=" --metric CC[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,4,None ]"
     ((++i))
   done
+fi
+
+# If requested, do linear resample
+if [[ ${_arg_resampled_linear_output} && ${_arg_skip_nonlinear} == "off" ]]; then
+  antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
+  ImageMath 3 "${_arg_resampled_linear_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
 fi
 
 if [[ ${_arg_skip_nonlinear} == "off" ]]; then
