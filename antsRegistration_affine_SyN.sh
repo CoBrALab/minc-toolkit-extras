@@ -16,6 +16,7 @@
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
+# ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
@@ -75,6 +76,7 @@ _arg_moving=()
 _arg_convergence="1e-6"
 _arg_syn_control="0.1,3,0"
 _arg_mask_extract="off"
+_arg_keep_mask_after_extract="off"
 _arg_histogram_matching="off"
 _arg_skip_linear="off"
 _arg_skip_nonlinear="off"
@@ -88,7 +90,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -105,6 +107,7 @@ print_help()
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
   printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
+  printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
   printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
   printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
@@ -221,6 +224,10 @@ parse_commandline()
       --no-mask-extract|--mask-extract)
         _arg_mask_extract="on"
         test "${1:0:5}" = "--no-" && _arg_mask_extract="off"
+        ;;
+      --no-keep-mask-after-extract|--keep-mask-after-extract)
+        _arg_keep_mask_after_extract="on"
+        test "${1:0:5}" = "--no-" && _arg_keep_mask_after_extract="off"
         ;;
       --no-histogram-matching|--histogram-matching)
         _arg_histogram_matching="on"
@@ -409,8 +416,13 @@ if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_m
   ImageMath 3 ${tmpdir}/moving_extracted.h5 m ${_arg_movingfile} ${_arg_moving_mask}
   movingfile1=${tmpdir}/moving_extracted.h5
   fixedfile1=${tmpdir}/fixed_extracted.h5
-  movingmask=NOMASK
-  fixedmask=NOMASK
+  if [[ ${_arg_keep_mask_after_extract} = "off" ]]; then
+    movingmask=NOMASK
+    fixedmask=NOMASK
+  else
+    movingmask=${_arg_moving_mask}
+    fixedmask=${_arg_fixed_mask}
+  fi
 else
   movingfile1=${_arg_movingfile}
   fixedfile1=${_arg_fixedfile}
