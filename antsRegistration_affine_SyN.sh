@@ -7,7 +7,7 @@
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([resampled-output],[o],[Output resampled file])
 # ARG_OPTIONAL_SINGLE([resampled-linear-output],[],[Output resampled file with only linear transform])
-# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial linear transform],[NONE])
+# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cog', 'origin', 'none', and filename],[com])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration],[])
@@ -68,7 +68,7 @@ _arg_moving_mask="NOMASK"
 _arg_fixed_mask="NOMASK"
 _arg_resampled_output=
 _arg_resampled_linear_output=
-_arg_initial_transform="NONE"
+_arg_initial_transform="com"
 _arg_linear_type="affine"
 _arg_close="off"
 _arg_fixed=()
@@ -99,7 +99,7 @@ print_help()
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
   printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
   printf '\t%s\n' "--resampled-linear-output: Output resampled file with only linear transform (no default)"
-  printf '\t%s\n' "--initial-transform: Initial linear transform (default: 'NONE')"
+  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cog', 'origin', 'none', and filename (default: 'com')"
   printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
@@ -452,27 +452,38 @@ ThresholdImage 3 ${tmpdir}/otsu.h5 ${tmpdir}/otsu.h5 2 Inf 1 0
 LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
 
+if [[ "${_arg_initial_transform}" == "com" ]]; then
+  initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ]"
+elif [[ "${_arg_initial_transform}" == "cog" ]]; then
+  initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ]"
+elif [[ "${_arg_initial_transform}" == "origin" ]]; then
+  initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ]"
+elif [[ -s "${_arg_initial_transform}" ]]; then
+  initial_transform="--initial-moving-transform ${_arg_initial_transform}"
+else
+  initial_transform=""
+fi
+
+# Generate steps for registration
 if [[ ${_arg_close} == "on" ]]; then
   steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  # Disable COM/GEO/ORIGIN pre-alignment if close
+  if [[ ! -s ${_arg_initial_transform} ]]; then
+    initial_transform=""
+  fi
 else
   steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence})
 
-if [[ "${_arg_initial_transform}" != "NONE" ]]; then
-  initial_transform=${_arg_initial_transform}
-elif [[ ${_arg_skip_linear} == "off" ]]; then
-  initial_transform="[ ${fixedfile1},${movingfile1},1 ]"
-fi
-
 if [[ ${_arg_skip_linear} == "off" ]]; then
   antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
     --output [ ${_arg_outputbasename} ] \
     --use-histogram-matching ${_arg_histogram_matching} \
-    --initial-moving-transform ${initial_transform} \
+    ${initial_transform} \
     $(eval echo ${steps_affine})
 else
-  if [[ "${_arg_initial_transform}" != "NONE" ]]; then
+  if [[ -s "${_arg_initial_transform}" ]]; then
     cp -f "${_arg_initial_transform}" "${second_stage_initial}" || true
   else
     if [[ -n ${minc_mode} ]]; then
