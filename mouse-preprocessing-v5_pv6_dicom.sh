@@ -122,7 +122,11 @@ mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/prec
 minc_anlm --clobber --mt $(nproc) ${tmpdir}/precorrect.mnc ${tmpdir}/denoise.mnc
 n3input=${tmpdir}/denoise.mnc
 
-antsRegistration_affine_SyN.sh --verbose --no-histogram-matching --fast --fixed-mask ${modelmask} \
+antsRegistration_affine_SyN.sh --verbose --initial-transform none --close --skip-nonlinear \
+  ${n3input} ${modelfile} ${tmpdir}/tomodel
+
+antsRegistration_affine_SyN.sh --clobber --initial-transform ${tmpdir}/tomodel0_GenericAffine.xfm \
+  --verbose --close --fast --fixed-mask ${modelmask} \
   ${n3input} ${modelfile} ${tmpdir}/tomodel
 
 antsApplyTransforms -d 3 -i ${modelmask} -t [ ${tmpdir}/tomodel0_GenericAffine.xfm,1 ] -t ${tmpdir}/tomodel1_inverse_NL.xfm \
@@ -147,7 +151,7 @@ done | parallel
 mincmath -clobber -mult ${tmpdir}/*field.mnc ${tmpdir}/precorrect_field_combined.mnc ${tmpdir}/field_final.mnc
 mincmath -clobber -copy_header -zero -div ${tmpdir}/originput.mnc ${tmpdir}/field_final.mnc ${tmpdir}/correct.mnc
 
-minc_anlm --mt $(nproc) ${tmpdir}/correct.mnc ${tmpdir}/denoise_correct.mnc
+minc_anlm --clobber --mt $(nproc) ${tmpdir}/correct.mnc ${tmpdir}/denoise_correct.mnc
 
 ExtractRegionFromImageByMask 3 ${tmpdir}/denoise_correct.mnc ${tmpdir}/recrop.mnc ${tmpdir}/weight.mnc 1 10
 mv -f ${tmpdir}/recrop.mnc ${tmpdir}/denoise_correct.mnc
