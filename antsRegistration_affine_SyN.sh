@@ -7,7 +7,7 @@
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([resampled-output],[o],[Output resampled file])
 # ARG_OPTIONAL_SINGLE([resampled-linear-output],[],[Output resampled file with only linear transform])
-# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cog', 'origin', 'none', and filename],[com])
+# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', and filename],[com])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration],[])
@@ -99,7 +99,7 @@ print_help()
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
   printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
   printf '\t%s\n' "--resampled-linear-output: Output resampled file with only linear transform (no default)"
-  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cog', 'origin', 'none', and filename (default: 'com')"
+  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', and filename (default: 'com')"
   printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
@@ -454,7 +454,7 @@ fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for 
 
 if [[ "${_arg_initial_transform}" == "com" ]]; then
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ]"
-elif [[ "${_arg_initial_transform}" == "cog" ]]; then
+elif [[ "${_arg_initial_transform}" == "cov" ]]; then
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ]"
 elif [[ "${_arg_initial_transform}" == "origin" ]]; then
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ]"
