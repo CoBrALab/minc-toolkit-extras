@@ -589,13 +589,13 @@ LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv &> /dev/nu
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
 info "Maximum image feature dimension ${fixed_maximum_resolution}mm"
 
-if [[ "${_arg_initial_transform}" == "com" ]]; then
+if [[ "${_arg_initial_transform}" == "com" && ${_arg_close} == "off" ]]; then
   info "Using Center-of-Mass between ${fixedfile1} and ${movingfile1} for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ]"
-elif [[ "${_arg_initial_transform}" == "cov" ]]; then
+elif [[ "${_arg_initial_transform}" == "cov" && ${_arg_close} == "off" ]]; then
   info "Using Center-of-Volume between ${fixedfile1} and ${movingfile1} for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ]"
-elif [[ "${_arg_initial_transform}" == "origin" ]]; then
+elif [[ "${_arg_initial_transform}" == "origin" && ${_arg_close} == "off" ]]; then
   info "Using Origin alignment between ${fixedfile1} and ${movingfile1} for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ]"
 elif [[ -s "${_arg_initial_transform}" ]]; then
@@ -609,10 +609,6 @@ fi
 # Generate steps for registration
 if [[ ${_arg_close} == "on" ]]; then
   steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_affine} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
-  # Disable COM/GEO/ORIGIN pre-alignment if close
-  if [[ ! -s ${_arg_initial_transform} ]]; then
-    initial_transform=""
-  fi
 else
   steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_affine} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
