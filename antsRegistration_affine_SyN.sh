@@ -23,6 +23,7 @@
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
+# ARG_OPTIONAL_BOOLEAN([fast],[],[Run fast SyN registration, overrides syn-metric above with Mattes[32]])
 # ARG_OPTIONAL_BOOLEAN([float],[],[Calculate registration using float instead of double])
 # ARG_OPTIONAL_BOOLEAN([clobber],[c],[Overwrite files that already exist])
 # ARG_OPTIONAL_BOOLEAN([verbose],[v],[Run commands verbosely],[on])
@@ -85,6 +86,7 @@ _arg_keep_mask_after_extract="off"
 _arg_histogram_matching="off"
 _arg_skip_linear="off"
 _arg_skip_nonlinear="off"
+_arg_fast="off"
 _arg_float="off"
 _arg_clobber="off"
 _arg_verbose="on"
@@ -94,7 +96,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-affine <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-affine <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -118,6 +120,7 @@ print_help()
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
   printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
   printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
+  printf '\t%s\n' "--fast, --no-fast: Run fast SyN registration, overrides syn-metric above with Mattes[32] (off by default)"
   printf '\t%s\n' "--float, --no-float: Calculate registration using float instead of double (off by default)"
   printf '\t%s\n' "-c, --clobber, --no-clobber: Overwrite files that already exist (off by default)"
   printf '\t%s\n' "-v, --verbose, --no-verbose: Run commands verbosely (on by default)"
@@ -270,6 +273,10 @@ parse_commandline()
       --no-skip-nonlinear|--skip-nonlinear)
         _arg_skip_nonlinear="on"
         test "${1:0:5}" = "--no-" && _arg_skip_nonlinear="off"
+        ;;
+      --no-fast|--fast)
+        _arg_fast="on"
+        test "${1:0:5}" = "--no-" && _arg_fast="off"
         ;;
       --no-float|--float)
         _arg_float="on"
@@ -522,14 +529,15 @@ else
 fi
 
 # Setup SyN image pairs
+if [[ ${_arg_fast} == "on" ]]; then
+  _arg_syn_metric="Mattes[32]"
+fi
 syn_metric="--metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${fixedfile1},${movingfile1},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None ]"
 i=0
 while (( i < ${#_arg_fixed[@]} )); do
   syn_metric+=" --metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None ]"
   ((++i))
 done
-
-exit
 
 # If requested, do linear resample
 if [[ ${_arg_resampled_linear_output} && ${_arg_skip_nonlinear} == "off" ]]; then
