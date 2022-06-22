@@ -17,12 +17,12 @@
 # ARG_OPTIONAL_SINGLE([final-iterations-affine],[],[Maximum iterations at finest scale for affine],[50])
 # ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
+# ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[4]])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
-# ARG_OPTIONAL_BOOLEAN([fast],[],[Run fast SyN registration])
 # ARG_OPTIONAL_BOOLEAN([float],[],[Calculate registration using float instead of double])
 # ARG_OPTIONAL_BOOLEAN([clobber],[c],[Overwrite files that already exist])
 # ARG_OPTIONAL_BOOLEAN([verbose],[v],[Run commands verbosely],[on])
@@ -79,12 +79,12 @@ _arg_convergence="1e-6"
 _arg_final_iterations_affine="50"
 _arg_final_iterations_nonlinear="25"
 _arg_syn_control="0.1,3,0"
+_arg_syn_metric="CC[4]"
 _arg_mask_extract="off"
 _arg_keep_mask_after_extract="off"
 _arg_histogram_matching="off"
 _arg_skip_linear="off"
 _arg_skip_nonlinear="off"
-_arg_fast="off"
 _arg_float="off"
 _arg_clobber="off"
 _arg_verbose="on"
@@ -94,7 +94,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-affine <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-affine <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -112,12 +112,12 @@ print_help()
   printf '\t%s\n' "--final-iterations-affine: Maximum iterations at finest scale for affine (default: '50')"
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
+  printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[4]')"
   printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
   printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
   printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
   printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
-  printf '\t%s\n' "--fast, --no-fast: Run fast SyN registration (off by default)"
   printf '\t%s\n' "--float, --no-float: Calculate registration using float instead of double (off by default)"
   printf '\t%s\n' "-c, --clobber, --no-clobber: Overwrite files that already exist (off by default)"
   printf '\t%s\n' "-v, --verbose, --no-verbose: Run commands verbosely (on by default)"
@@ -243,6 +243,14 @@ parse_commandline()
       --syn-control=*)
         _arg_syn_control="${_key##--syn-control=}"
         ;;
+      --syn-metric)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_syn_metric="$2"
+        shift
+        ;;
+      --syn-metric=*)
+        _arg_syn_metric="${_key##--syn-metric=}"
+        ;;
       --no-mask-extract|--mask-extract)
         _arg_mask_extract="on"
         test "${1:0:5}" = "--no-" && _arg_mask_extract="off"
@@ -262,10 +270,6 @@ parse_commandline()
       --no-skip-nonlinear|--skip-nonlinear)
         _arg_skip_nonlinear="on"
         test "${1:0:5}" = "--no-" && _arg_skip_nonlinear="off"
-        ;;
-      --no-fast|--fast)
-        _arg_fast="on"
-        test "${1:0:5}" = "--no-" && _arg_fast="off"
         ;;
       --no-float|--float)
         _arg_float="on"
@@ -510,28 +514,22 @@ else
   else
     if [[ -n ${minc_mode} ]]; then
       #Generate identity transform
-      param2xfm "${second_stage_initial}"
+      param2xfm -clobber "${second_stage_initial}"
     else
       ImageMath 3 "${second_stage_initial}" MakeAffineTransform 1
     fi
   fi
 fi
 
-if [[ ${_arg_fast} == "on" ]]; then
-  syn_metric="--metric Mattes[ ${fixedfile1},${movingfile1},1,32,None ]"
-  i=0
-  while (( i < ${#_arg_fixed[@]} )); do
-    syn_metric+=" --metric Mattes[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,32,None ]"
-    ((++i))
-  done
-else
-  syn_metric="--metric CC[ ${fixedfile1},${movingfile1},1,4,None ]"
-  i=0
-  while (( i < ${#_arg_fixed[@]} )); do
-    syn_metric+=" --metric CC[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,4,None ]"
-    ((++i))
-  done
-fi
+# Setup SyN image pairs
+syn_metric="--metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${fixedfile1},${movingfile1},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None ]"
+i=0
+while (( i < ${#_arg_fixed[@]} )); do
+  syn_metric+=" --metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None ]"
+  ((++i))
+done
+
+exit
 
 # If requested, do linear resample
 if [[ ${_arg_resampled_linear_output} && ${_arg_skip_nonlinear} == "off" ]]; then
