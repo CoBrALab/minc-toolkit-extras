@@ -364,32 +364,124 @@ assign_positional_args 1 "${_positionals[@]}"
 
 set -euo pipefail
 
+### BASH HELPER FUNCTIONS ###
+# Stolen from https://github.com/kvz/bash3boilerplate
+
+# Set magic variables for current file, directory, os, etc.
+__dir="$(cd "$(dirname "${BASH_SOURCE[${__b3bp_tmp_source_idx:-0}]}")" && pwd)"
+__file="${__dir}/$(basename "${BASH_SOURCE[${__b3bp_tmp_source_idx:-0}]}")"
+__base="$(basename "${__file}" .sh)"
+# shellcheck disable=SC2034,SC2015
+__invocation="$(printf %q "${__file}")$( (($#)) && printf ' %q' "$@" || true)"
+
 if [[ ${_arg_debug} == "on" ]]; then
-  set -x
+  LOG_LEVEL=7
+else
+  LOG_LEVEL=6
 fi
+
+function __b3bp_log() {
+  local log_level="${1}"
+  shift
+
+  # shellcheck disable=SC2034
+  local color_debug="\\x1b[35m" #]
+  # shellcheck disable=SC2034
+  local color_info="\\x1b[32m" #]
+  # shellcheck disable=SC2034
+  local color_notice="\\x1b[34m" #]
+  # shellcheck disable=SC2034
+  local color_warning="\\x1b[33m" #]
+  # shellcheck disable=SC2034
+  local color_error="\\x1b[31m" #]
+  # shellcheck disable=SC2034
+  local color_critical="\\x1b[1;31m" #]
+  # shellcheck disable=SC2034
+  local color_alert="\\x1b[1;37;41m" #]
+  # shellcheck disable=SC2034
+  local color_failure="\\x1b[1;4;5;37;41m" #]
+
+  local colorvar="color_${log_level}"
+
+  local color="${!colorvar:-${color_error}}"
+  local color_reset="\\x1b[0m" #]
+
+  if [[ "${NO_COLOR:-}" = "true" ]] || { [[ "${TERM:-}" != "xterm"* ]] && [[ "${TERM:-}" != "screen"* ]]; } || [[ ! -t 2 ]]; then
+    if [[ "${NO_COLOR:-}" != "false" ]]; then
+      # Don't use colors on pipes or non-recognized terminals
+      color=""
+      color_reset=""
+    fi
+  fi
+
+  # all remaining arguments are to be printed
+  local log_line=""
+
+  while IFS=$'\n' read -r log_line; do
+    echo -e "$(date -u +"%Y-%m-%d %H:%M:%S UTC") ${color}$(printf "[%9s]" "${log_level}")${color_reset} ${log_line}" 1>&2
+  done <<<"${@:-}"
+}
+
+function failure() {
+  __b3bp_log failure "${@}"
+  exit 1
+}
+function alert() {
+  [[ "${LOG_LEVEL:-0}" -ge 1 ]] && __b3bp_log alert "${@}"
+  true
+}
+function critical() {
+  [[ "${LOG_LEVEL:-0}" -ge 2 ]] && __b3bp_log critical "${@}"
+  true
+}
+function error() {
+  [[ "${LOG_LEVEL:-0}" -ge 3 ]] && __b3bp_log error "${@}"
+  true
+}
+function warning() {
+  [[ "${LOG_LEVEL:-0}" -ge 4 ]] && __b3bp_log warning "${@}"
+  true
+}
+function notice() {
+  [[ "${LOG_LEVEL:-0}" -ge 5 ]] && __b3bp_log notice "${@}"
+  true
+}
+function info() {
+  [[ "${LOG_LEVEL:-0}" -ge 6 ]] && __b3bp_log info "${@}"
+  true
+}
+function debug() {
+  [[ "${LOG_LEVEL:-0}" -ge 7 ]] && __b3bp_log debug "${@}"
+  true
+}
+
+# Add handler for failure to show where things went wrong
+failure_handler() {
+  local lineno=${1}
+  local msg=${2}
+  emergency "Failed at ${lineno}: ${msg}"
+}
+trap 'failure_handler ${LINENO} "$BASH_COMMAND"' ERR
+
+function run_smart {
+  # Function runs the command it wraps if the file does not exist
+  if [[ ! -s "$1" ]]; then
+    "$2"
+  fi
+}
 
 export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${THREADS_PER_COMMAND:-$(nproc)}
 
 tmpdir=$(mktemp -d)
-
 
 #Setup exit trap for cleanup, don't do if debug
 function finish() {
     if [[ ${_arg_debug} == "off" ]]; then
         rm -rf "${tmpdir}"
     fi
-
+    warning "Debug enabled, temporary files at ${tmpdir} have not been cleaned up"
 }
 trap finish EXIT
-
-#Add handler for failure to show where things went wrong
-failure() {
-    local lineno=$1
-    local msg=$2
-    echo "Failed at $lineno: $msg"
-}
-trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
-
 
 #Input checking
 if [[ "${_arg_clobber}" == "off" ]]; then
@@ -397,21 +489,23 @@ if [[ "${_arg_clobber}" == "off" ]]; then
               ${_arg_outputbasename}1_NL.xfm ${_arg_outputbasename}1Warp.nii.gz \
               ${_arg_resampled_output} ${_arg_resampled_linear_output}; do
     if [[ -s "${file}" ]]; then
-      die "File ${file} already exists and --clobber not specified!"
+      error "File ${file} already exists and --clobber not specified!"
+      exit 1
     fi
   done
 fi
 
 if [[ ! ${#_arg_fixed[@]} -eq ${#_arg_moving[@]} ]]; then
-  echo "Number of multispectral moving and fixed inputs not equal"
-  echo "Got fixed=(${_arg_fixed[@]})"
-  echo "Got moving=(${_arg_moving[@]})"
+  error "Number of multispectral moving and fixed inputs not equal"
+  error "Got fixed=(${_arg_fixed[@]})"
+  error "Got moving=(${_arg_moving[@]})"
   exit 1
 fi
 
 
 #Check for minc or nifti, make appropriate adjustments of transforms
 if [[ "${_arg_movingfile}" =~ .*"mnc" || "${_arg_fixedfile}" =~ .*"mnc" ]]; then
+  info "MINC input files detected, antsRegistration will be run with --minc"
   minc_mode="--minc"
   second_stage_initial="${_arg_outputbasename}0_GenericAffine.xfm"
   second_stage_final="${_arg_outputbasename}1_NL.xfm"
@@ -432,19 +526,24 @@ fi
 
 #Enable histogram matching
 if [[ ${_arg_histogram_matching} == "on" ]]; then
+  info "Histogram matching enabled"
   _arg_histogram_matching=1
 else
+  info "Histogram matching disabled"
   _arg_histogram_matching=0
 fi
 
 #Float mode switch for antsRegistration
 if [[ ${_arg_float} == "on" ]]; then
+  info "Calculations performed with float"
   _arg_float="--float 1"
 else
+  info "Calculations performed with double"
   _arg_float="--float 0"
 fi
 
 if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
+  info "Creating extracted versions of input files using masks"
   ImageMath 3 ${tmpdir}/fixed_extracted.h5 m ${_arg_fixedfile} ${_arg_fixed_mask}
   ImageMath 3 ${tmpdir}/moving_extracted.h5 m ${_arg_movingfile} ${_arg_moving_mask}
   movingfile1=${tmpdir}/moving_extracted.h5
@@ -457,10 +556,12 @@ if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_m
     fixedmask=${_arg_fixed_mask}
   fi
 else
+  info "Using ${_arg_movingfile} and ${_arg_fixedfile} as moving and fixed image pair"
   movingfile1=${_arg_movingfile}
   fixedfile1=${_arg_fixedfile}
   i=0
   while (( ${i} < ${#_arg_fixed[@]} )); do
+    info "Using ${_arg_moving[${i}]} and ${_arg_fixed[${i}]} as additional moving and fixed image pair"
     declare "movingfile$((i+2))=${_arg_moving[${i}]}"
     declare "fixedfile$((i+2))=${_arg_fixed[${i}]}"
     ((++i))
@@ -474,26 +575,34 @@ if [[ ${fixedmask} == "NOMASK" && ${movingmask} == "NOMASK" ]]; then
 fi
 
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]]))")
+info "Mimimum voxel dimension ${fixed_minimum_resolution}mm"
 
 #Calculate Maximum FOV using the size of the fixed image
 #fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
 
 #Calculate Maximum FOV using the foreground/background of the fixed image
+info "Calculating maximum image feature dimension of fixed reference using thresholding"
 ThresholdImage 3 ${fixedfile1} ${tmpdir}/bgmask.h5 1e-12 Inf 1 0
-ThresholdImage 3 ${fixedfile1} ${tmpdir}/otsu.h5 Otsu 4 ${tmpdir}/bgmask.h5
+ThresholdImage 3 ${fixedfile1} ${tmpdir}/otsu.h5 Otsu 4 ${tmpdir}/bgmask.h5 &> /dev/null
 ThresholdImage 3 ${tmpdir}/otsu.h5 ${tmpdir}/otsu.h5 2 Inf 1 0
-LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv
+LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv &> /dev/null
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
+info "Maximum image feature dimension ${fixed_maximum_resolution}mm"
 
 if [[ "${_arg_initial_transform}" == "com" ]]; then
+  info "Using Center-of-Mass between ${fixedfile1} and ${movingfile1} for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ]"
 elif [[ "${_arg_initial_transform}" == "cov" ]]; then
+  info "Using Center-of-Volume between ${fixedfile1} and ${movingfile1} for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ]"
 elif [[ "${_arg_initial_transform}" == "origin" ]]; then
+  info "Using Origin alignment between ${fixedfile1} and ${movingfile1} for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ]"
 elif [[ -s "${_arg_initial_transform}" ]]; then
+  info "Using file ${_arg_initial_transform} for registration initialization"
   initial_transform="--initial-moving-transform ${_arg_initial_transform}"
 else
+  info "Performing no registration initialization"
   initial_transform=""
 fi
 
@@ -510,11 +619,14 @@ fi
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
 
 if [[ ${_arg_skip_linear} == "off" ]]; then
-  antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
+  run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
     --output [ ${_arg_outputbasename} ] \
     --use-histogram-matching ${_arg_histogram_matching} \
     ${initial_transform} \
-    $(eval echo ${steps_affine})
+    $(eval echo ${steps_affine})"
+  debug "Linear registration command"
+  debug "$(tr -s "[:blank:]" <<< ${run_command})"
+  ${run_command}
 else
   if [[ -s "${_arg_initial_transform}" ]]; then
     cp -f "${_arg_initial_transform}" "${second_stage_initial}" || true
@@ -541,23 +653,28 @@ done
 
 # If requested, do linear resample
 if [[ ${_arg_resampled_linear_output} && ${_arg_skip_nonlinear} == "off" ]]; then
+  info "Generating linear transform resampled output to ${_arg_resampled_linear_output}"
   antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
   ImageMath 3 "${_arg_resampled_linear_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
 fi
 
 if [[ ${_arg_skip_nonlinear} == "off" ]]; then
-  antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
+  run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
     --output [ ${_arg_outputbasename} ] \
     --use-histogram-matching ${_arg_histogram_matching} \
     --initial-moving-transform "${second_stage_initial}" \
     --transform SyN[ ${_arg_syn_control} ] \
     ${syn_metric} \
     $(eval echo ${steps_syn}) \
-    --masks [ ${fixedmask},${movingmask} ]
+    --masks [ ${fixedmask},${movingmask} ]"
+    debug "Non-linear registration command"
+    debug "$(tr -s "[:blank:]" <<< ${run_command})"
+    ${run_command}
 fi
 
 if [[ ${_arg_resampled_output} ]]; then
+  info "Generating linear + non-linear resampled output to ${_arg_resampled_output}"
   if [[ ${_arg_skip_nonlinear} == "off" ]]; then
     antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   else
