@@ -48,7 +48,7 @@ parser.add_argument(
 parser.add_argument(
     '--convergence-window', help='set convergence window for generated stages', default='10')
 parser.add_argument(
-    '--close', help='images are already close, skip large scales of pyramid for affine', action='store_true')
+    '--close', help='images are already close, skip large scales of pyramid and translation and rigid steps for affine', action='store_true')
 parser.add_argument(
     '--affine-metric', help='which metric to use for affine stages, use comma separated list for multiple image pairs (MI, Mattes, GC, MeanSquares, Demons)', default='Mattes')
 parser.add_argument('--reg-pairs', help='number of image pairs for affine output', default=1, type=check_positive)
