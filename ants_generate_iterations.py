@@ -44,6 +44,9 @@ parser.add_argument(
     '--convergence-window', help='set convergenge window for generated stages', default='10')
 parser.add_argument(
     '--close', help='images are already close, skip large scales of pyramid for affine', action='store_true')
+parser.add_argument(
+    '--affine-metric', help='which metric to use for affine stages', default='Mattes',
+      choices=['Mattes', 'MI', 'GC', 'MeanSquares', 'Demons'])
 parser.add_argument('--reg-pairs', help='number of pairs of input scans for affine output', default=1, type=int)
 parser.add_argument('--no-masks', help='for linear registration outputs skip repeat stages with masks', action='store_true')
 
@@ -52,6 +55,7 @@ args = parser.parse_args()
 # Setup inital inputs
 min_resolution = args.min
 max_size = args.max
+
 
 if RepresentsInt(args.step_size):
     step_size = int(args.step_size)
@@ -137,7 +141,7 @@ if args.output == 'exhaustive-affine':
             if i == len(transforms) - 1:
               print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
               for j in range(1, args.reg_pairs+1):
-                  print("\t--metric Mattes[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j), end=' \\\n')
+                  print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j, affinemetric=args.affine_metric), end=' \\\n')
               print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
               print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
               if args.no_masks:
@@ -148,7 +152,7 @@ if args.output == 'exhaustive-affine':
             else:
               print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
               for j in range(1, args.reg_pairs+1):
-                  print("\t--metric Mattes[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j), end=' \\\n')
+                  print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j, affinemetric=args.affine_metric), end=' \\\n')
               print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
               print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
               print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
@@ -157,7 +161,7 @@ if args.output == 'exhaustive-affine':
                 if repeatmask[i]:
                   print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
                   for j in range(1, args.reg_pairs+1):
-                    print("\t--metric Mattes[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j), end=' \\\n')
+                    print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j, affinemetric=args.affine_metric), end=' \\\n')
                   print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
                   print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
                   print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
@@ -200,7 +204,7 @@ else:
           if i == len(transforms) - 1:
             print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
             for j in range(1, args.reg_pairs+1):
-              print("\t--metric Mattes[ ${{fixedfile{j}}},${{movingfile{j}}},1,64,None ]".format(j=j), end=' \\\n')
+              print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},1,64,None ]".format(j=j, affinemetric=args.affine_metric), end=' \\\n')
             print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:]), args.convergence, args.convergence_window), end=' \\\n')
             print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:])), end=' \\\n')
             if args.no_masks:
@@ -211,7 +215,7 @@ else:
           else:
             print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
             for j in range(1, args.reg_pairs+1):
-              print("\t--metric Mattes[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j), end=' \\\n')
+              print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j, affinemetric=args.affine_metric), end=' \\\n')
             print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
             print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
             print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
@@ -220,7 +224,7 @@ else:
               if repeatmask[i]:
                 print(transform + str(gradient_steps_repeat[i]) + " ]", end=' \\\n')
                 for j in range(1, args.reg_pairs+1):
-                    print("\t--metric Mattes[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j), end=' \\\n')
+                    print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},1,32,None ]".format(j=j, affinemetric=args.affine_metric), end=' \\\n')
                 print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
                 print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
                 print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
