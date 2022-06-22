@@ -37,7 +37,7 @@ parser.add_argument(
 parser.add_argument(
     '--start-scale', help='set starting scale (mm), default calculated from max size', type=float)
 parser.add_argument(
-    '--final-iterations', help='total number of iterations at lowest scale (doubled for affine)', type=int, default=25)
+    '--final-iterations', help='total number of iterations at lowest scale (50 for affine)', type=int, default=25)
 parser.add_argument(
     '--output', help='type of output to generate', default='generic',
       choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine',
@@ -46,7 +46,7 @@ parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
 parser.add_argument(
-    '--convergence-window', help='set convergenge window for generated stages', default='10')
+    '--convergence-window', help='set convergence window for generated stages', default='10')
 parser.add_argument(
     '--close', help='images are already close, skip large scales of pyramid for affine', action='store_true')
 parser.add_argument(
