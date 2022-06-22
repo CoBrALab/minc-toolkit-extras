@@ -14,6 +14,8 @@
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration],[])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
+# ARG_OPTIONAL_SINGLE([final-iterations-affine],[],[Maximum iterations at finest scale for affine],[50])
+# ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
@@ -74,6 +76,8 @@ _arg_close="off"
 _arg_fixed=()
 _arg_moving=()
 _arg_convergence="1e-6"
+_arg_final_iterations_affine="50"
+_arg_final_iterations_nonlinear="25"
 _arg_syn_control="0.1,3,0"
 _arg_mask_extract="off"
 _arg_keep_mask_after_extract="off"
@@ -90,7 +94,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-affine <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -105,6 +109,8 @@ print_help()
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration (empty by default)"
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
+  printf '\t%s\n' "--final-iterations-affine: Maximum iterations at finest scale for affine (default: '50')"
+  printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
   printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
   printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
@@ -212,6 +218,22 @@ parse_commandline()
         ;;
       --convergence=*)
         _arg_convergence="${_key##--convergence=}"
+        ;;
+      --final-iterations-affine)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_final_iterations_affine="$2"
+        shift
+        ;;
+      --final-iterations-affine=*)
+        _arg_final_iterations_affine="${_key##--final-iterations-affine=}"
+        ;;
+      --final-iterations-nonlinear)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_final_iterations_nonlinear="$2"
+        shift
+        ;;
+      --final-iterations-nonlinear=*)
+        _arg_final_iterations_nonlinear="${_key##--final-iterations-nonlinear=}"
         ;;
       --syn-control)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -466,15 +488,15 @@ fi
 
 # Generate steps for registration
 if [[ ${_arg_close} == "on" ]]; then
-  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_affine} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
   # Disable COM/GEO/ORIGIN pre-alignment if close
   if [[ ! -s ${_arg_initial_transform} ]]; then
     initial_transform=""
   fi
 else
-  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_affine} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
-steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence})
+steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
 
 if [[ ${_arg_skip_linear} == "off" ]]; then
   antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
