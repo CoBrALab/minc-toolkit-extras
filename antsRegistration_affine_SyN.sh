@@ -5,16 +5,16 @@
 # ARG_POSITIONAL_SINGLE([outputbasename],[The basename for the output transforms])
 # ARG_OPTIONAL_SINGLE([moving-mask],[],[Mask for moving image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
-# ARG_OPTIONAL_SINGLE([resampled-output],[o],[Output resampled file])
-# ARG_OPTIONAL_SINGLE([resampled-linear-output],[],[Output resampled file with only linear transform])
+# ARG_OPTIONAL_REPEATED([resampled-output],[o],[Output resampled file, repeat for resampling multispectral outputs])
+# ARG_OPTIONAL_REPEATED([resampled-linear-output],[],[Output resampled file with only linear transform])
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename],[com])
-# ARG_OPTIONAL_SINGLE([linear-type],[],[Type of affine transform],[affine])
+# ARG_OPTIONAL_SINGLE([linear-type],[],[Type of linear transform],[affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration],[])
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration],[])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
-# ARG_OPTIONAL_SINGLE([final-iterations-affine],[],[Maximum iterations at finest scale for affine],[50])
+# ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[50])
 # ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[4]])
@@ -69,15 +69,15 @@ _positionals=()
 # THE DEFAULTS INITIALIZATION - OPTIONALS
 _arg_moving_mask="NOMASK"
 _arg_fixed_mask="NOMASK"
-_arg_resampled_output=
-_arg_resampled_linear_output=
+_arg_resampled_output=()
+_arg_resampled_linear_output=()
 _arg_initial_transform="com"
 _arg_linear_type="affine"
 _arg_close="off"
 _arg_fixed=()
 _arg_moving=()
 _arg_convergence="1e-6"
-_arg_final_iterations_affine="50"
+_arg_final_iterations_linear="50"
 _arg_final_iterations_nonlinear="25"
 _arg_syn_control="0.1,3,0"
 _arg_syn_metric="CC[4]"
@@ -96,22 +96,22 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-affine <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
   printf '\t%s\n' "-h, --help: Prints help"
   printf '\t%s\n' "--moving-mask: Mask for moving image (default: 'NOMASK')"
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
-  printf '\t%s\n' "-o, --resampled-output: Output resampled file (no default)"
-  printf '\t%s\n' "--resampled-linear-output: Output resampled file with only linear transform (no default)"
+  printf '\t%s\n' "-o, --resampled-output: Output resampled file, repeat for resampling multispectral outputs (empty by default)"
+  printf '\t%s\n' "--resampled-linear-output: Output resampled file with only linear transform (empty by default)"
   printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename (default: 'com')"
-  printf '\t%s\n' "--linear-type: Type of affine transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
+  printf '\t%s\n' "--linear-type: Type of linear transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration (empty by default)"
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
-  printf '\t%s\n' "--final-iterations-affine: Maximum iterations at finest scale for affine (default: '50')"
+  printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '50')"
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
   printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[4]')"
@@ -161,22 +161,22 @@ parse_commandline()
         ;;
       -o|--resampled-output)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_resampled_output="$2"
+        _arg_resampled_output+=("$2")
         shift
         ;;
       --resampled-output=*)
-        _arg_resampled_output="${_key##--resampled-output=}"
+        _arg_resampled_output+=("${_key##--resampled-output=}")
         ;;
       -o*)
-        _arg_resampled_output="${_key##-o}"
+        _arg_resampled_output+=("${_key##-o}")
         ;;
       --resampled-linear-output)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_resampled_linear_output="$2"
+        _arg_resampled_linear_output+=("$2")
         shift
         ;;
       --resampled-linear-output=*)
-        _arg_resampled_linear_output="${_key##--resampled-linear-output=}"
+        _arg_resampled_linear_output+=("${_key##--resampled-linear-output=}")
         ;;
       --initial-transform)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -222,13 +222,13 @@ parse_commandline()
       --convergence=*)
         _arg_convergence="${_key##--convergence=}"
         ;;
-      --final-iterations-affine)
+      --final-iterations-linear)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_final_iterations_affine="$2"
+        _arg_final_iterations_linear="$2"
         shift
         ;;
-      --final-iterations-affine=*)
-        _arg_final_iterations_affine="${_key##--final-iterations-affine=}"
+      --final-iterations-linear=*)
+        _arg_final_iterations_linear="${_key##--final-iterations-linear=}"
         ;;
       --final-iterations-nonlinear)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -459,7 +459,7 @@ function debug() {
 failure_handler() {
   local lineno=${1}
   local msg=${2}
-  emergency "Failed at ${lineno}: ${msg}"
+  alert "Failed at ${lineno}: ${msg}"
 }
 trap 'failure_handler ${LINENO} "$BASH_COMMAND"' ERR
 
@@ -488,7 +488,7 @@ trap finish EXIT
 if [[ "${_arg_clobber}" == "off" ]]; then
   for file in ${_arg_outputbasename}0_GenericAffine.xfm ${_arg_outputbasename}0GenericAffine.mat \
               ${_arg_outputbasename}1_NL.xfm ${_arg_outputbasename}1Warp.nii.gz \
-              ${_arg_resampled_output} ${_arg_resampled_linear_output}; do
+              ${_arg_resampled_output[0]-} ${_arg_resampled_linear_output[0]-}; do
     if [[ -s "${file}" ]]; then
       error "File ${file} already exists and --clobber not specified!"
       exit 1
@@ -557,14 +557,14 @@ if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_m
     fixedmask=${_arg_fixed_mask}
   fi
 else
-  info "Using ${_arg_movingfile} and ${_arg_fixedfile} as moving and fixed image pair"
+  info "Using $(basename ${_arg_movingfile}) and $(basename ${_arg_fixedfile}) as moving and fixed image pair"
   movingfile1=${_arg_movingfile}
   fixedfile1=${_arg_fixedfile}
   i=0
   while (( ${i} < ${#_arg_fixed[@]} )); do
-    info "Using ${_arg_moving[${i}]} and ${_arg_fixed[${i}]} as additional moving and fixed image pair"
-    declare "movingfile$((i+2))=${_arg_moving[${i}]}"
-    declare "fixedfile$((i+2))=${_arg_fixed[${i}]}"
+    info "Using $(basename ${_arg_moving[i]}) and $(basename ${_arg_fixed[i]}) as additional moving and fixed image pair"
+    declare "movingfile$((i+2))=${_arg_moving[i]}"
+    declare "fixedfile$((i+2))=${_arg_fixed[i]}"
     ((++i))
   done
   movingmask=${_arg_moving_mask}
@@ -591,13 +591,13 @@ fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for 
 info "Maximum image feature dimension ${fixed_maximum_resolution}mm"
 
 if [[ "${_arg_initial_transform}" == "com" && ${_arg_close} == "off" ]]; then
-  info "Using Center-of-Mass between ${fixedfile1} and ${movingfile1} for registration initialization"
+  info "Using Center-of-Mass between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ]"
 elif [[ "${_arg_initial_transform}" == "cov" && ${_arg_close} == "off" ]]; then
-  info "Using Center-of-Volume between ${fixedfile1} and ${movingfile1} for registration initialization"
+  info "Using Center-of-Volume between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ]"
 elif [[ "${_arg_initial_transform}" == "origin" && ${_arg_close} == "off" ]]; then
-  info "Using Origin alignment between ${fixedfile1} and ${movingfile1} for registration initialization"
+  info "Using Origin alignment between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
   initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ]"
 elif [[ -s "${_arg_initial_transform}" ]]; then
   info "Using file ${_arg_initial_transform} for registration initialization"
@@ -609,9 +609,9 @@ fi
 
 # Generate steps for registration
 if [[ ${_arg_close} == "on" ]]; then
-  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_affine} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
 else
-  steps_affine=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_affine} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
 steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
 
@@ -620,7 +620,7 @@ if [[ ${_arg_skip_linear} == "off" ]]; then
     --output [ ${_arg_outputbasename} ] \
     --use-histogram-matching ${_arg_histogram_matching} \
     ${initial_transform} \
-    $(eval echo ${steps_affine})"
+    $(eval echo ${steps_linear})"
   debug "Linear registration command"
   debug "$(tr -s "[:blank:]" <<< ${run_command})"
   ${run_command}
@@ -649,12 +649,32 @@ while (( i < ${#_arg_fixed[@]} )); do
 done
 
 # If requested, do linear resample
-if [[ ${_arg_resampled_linear_output} && ${_arg_skip_nonlinear} == "off" ]]; then
-  info "Generating linear transform resampled output to ${_arg_resampled_linear_output}"
-  antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+if [[ ${_arg_resampled_linear_output[0]-} && ${_arg_skip_nonlinear} == "off" ]]; then
+  info "Generating linear transform resampled output to $(basename ${_arg_resampled_linear_output[0]})"
+  antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} \
+    -i ${_arg_movingfile} \
+    -r ${_arg_fixedfile} \
+    -t "${second_stage_initial}" \
+    -o "${intermediate_resample}" \
+    -n BSpline[5]
   ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
-  ImageMath 3 "${_arg_resampled_linear_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+  ImageMath 3 "${_arg_resampled_linear_output[0]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+  i=1
+  while (( i < ${#_arg_resampled_linear_output[@]} )); do
+  info "Generating linear transform resampled output to $(basename ${_arg_resampled_linear_output[i]})"
+      antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} \
+        -i ${_arg_moving[i-1]} \
+        -r ${_arg_fixed[i-1]} \
+        -t "${second_stage_initial}" \
+        -o "${intermediate_resample}" \
+        -n BSpline[5]
+    ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
+    ImageMath 3 "${_arg_resampled_linear_output[i]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+    ((++i))
+  done
 fi
+
+
 
 if [[ ${_arg_skip_nonlinear} == "off" ]]; then
   run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
@@ -670,15 +690,28 @@ if [[ ${_arg_skip_nonlinear} == "off" ]]; then
     ${run_command}
 fi
 
-if [[ ${_arg_resampled_output} ]]; then
-  info "Generating linear + non-linear resampled output to ${_arg_resampled_output}"
+if [[ ${_arg_resampled_output[0]-} ]]; then
+  info "Generating linear + non-linear resampled output to $(basename ${_arg_resampled_output[0]})"
   if [[ ${_arg_skip_nonlinear} == "off" ]]; then
     antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   else
     antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
   fi
   ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
-  ImageMath 3 "${_arg_resampled_output}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+  ImageMath 3 "${_arg_resampled_output[0]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+
+  i=1
+  while (( i < ${#_arg_resampled_output[@]} )); do
+    info "Generating linear + non-linear resampled output to $(basename ${_arg_resampled_output[i]})"
+    if [[ ${_arg_skip_nonlinear} == "off" ]]; then
+      antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_moving[i-1]} -r ${_arg_fixed[i-1]} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+    else
+      antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_moving[i-1]} -r ${_arg_fixed[i-1]} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+    fi
+    ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
+    ImageMath 3 "${_arg_resampled_output[i]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+    ((++i))
+  done
 fi
 
 # ] <-- needed because of Argbash
