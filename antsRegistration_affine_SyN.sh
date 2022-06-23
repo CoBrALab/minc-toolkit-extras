@@ -478,8 +478,9 @@ tmpdir=$(mktemp -d)
 function finish() {
     if [[ ${_arg_debug} == "off" ]]; then
         rm -rf "${tmpdir}"
+    else
+      warning "Debug enabled, temporary files at ${tmpdir} have not been cleaned up"
     fi
-    warning "Debug enabled, temporary files at ${tmpdir} have not been cleaned up"
 }
 trap finish EXIT
 
