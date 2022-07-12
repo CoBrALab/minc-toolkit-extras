@@ -484,7 +484,7 @@ function finish() {
 }
 trap finish EXIT
 
-#Input checking
+# Output checking
 if [[ "${_arg_clobber}" == "off" ]]; then
   for file in ${_arg_outputbasename}0_GenericAffine.xfm ${_arg_outputbasename}0GenericAffine.mat \
               ${_arg_outputbasename}1_NL.xfm ${_arg_outputbasename}1Warp.nii.gz \
