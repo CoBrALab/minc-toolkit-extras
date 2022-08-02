@@ -484,6 +484,20 @@ function finish() {
 }
 trap finish EXIT
 
+# Prefight check for required programs
+for program in ImageMath \
+  ThresholdImage antsAI \
+  antsApplyTransforms \
+  LabelGeometryMeasures \
+  ants_generate_iterations.py; do
+
+  if ! command -v ${program} &>/dev/null; then
+    failure "Required program ${program} not found!"
+  fi
+
+done
+
+
 # Output checking
 if [[ "${_arg_clobber}" == "off" ]]; then
   for file in ${_arg_outputbasename}0_GenericAffine.xfm ${_arg_outputbasename}0GenericAffine.mat \
