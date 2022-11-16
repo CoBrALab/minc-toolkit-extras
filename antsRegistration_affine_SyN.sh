@@ -470,8 +470,6 @@ function run_smart {
   fi
 }
 
-export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${THREADS_PER_COMMAND:-$(nproc)}
-
 tmpdir=$(mktemp -d)
 
 #Setup exit trap for cleanup, don't do if debug
