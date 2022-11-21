@@ -45,7 +45,8 @@ parser.add_argument(
 parser.add_argument(
     '--output', help='type of output to generate', default='generic',
       choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine',
-                'lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity'])
+                'lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity','volgenmodel'])
+parser.add_argument('--volgen-iteration', help='for volgenmodel mode, control which iteration is output', default=0, type=int)
 parser.add_argument('--step-size', help='step mode for generation', default=1)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
@@ -209,6 +210,11 @@ elif args.output == 'generic':
       print("--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
       print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
       print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
+
+elif args.output == 'volgenmodel':
+    print("--convergence [ {},{},{} ]".format(iterations[args.volgen_iteration], args.convergence, args.convergence_window), end=' \\\n')
+    print("--shrink-factors {}".format(shrinks[args.volgen_iteration]), end=' \\\n')
+    print("--smoothing-sigmas {}mm".format(blurs[args.volgen_iteration]), end=' ')
 
 else:
     slicestart = [ 0,
