@@ -653,10 +653,10 @@ fi
 if [[ ${_arg_fast} == "on" ]]; then
   _arg_syn_metric="Mattes[32]"
 fi
-syn_metric="--metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${fixedfile1},${movingfile1},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1 ]"
+syn_metric="--metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${fixedfile1},${movingfile1},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1,1 ]"
 i=0
 while (( i < ${#_arg_fixed[@]} )); do
-  syn_metric+=" --metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None ]"
+  syn_metric+=" --metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1,1 ]"
   ((++i))
 done
 
