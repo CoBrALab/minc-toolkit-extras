@@ -18,6 +18,7 @@
 # ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[4]])
+# ARG_OPTIONAL_SINGLE([volgenmodel-iteration],[],[Call ants_generate_iterations.py with volgenmodel option and specified iteration],[])
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
@@ -81,6 +82,7 @@ _arg_final_iterations_linear="50"
 _arg_final_iterations_nonlinear="25"
 _arg_syn_control="0.1,3,0"
 _arg_syn_metric="CC[4]"
+_arg_volgenmodel_iteration=
 _arg_mask_extract="off"
 _arg_keep_mask_after_extract="off"
 _arg_histogram_matching="off"
@@ -96,7 +98,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -115,6 +117,7 @@ print_help()
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
   printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[4]')"
+  printf '\t%s\n' "--volgenmodel-iteration: Call ants_generate_iterations.py with volgenmodel option and specified iteration (no default)"
   printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
   printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
@@ -253,6 +256,14 @@ parse_commandline()
         ;;
       --syn-metric=*)
         _arg_syn_metric="${_key##--syn-metric=}"
+        ;;
+      --volgenmodel-iteration)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_volgenmodel_iteration="$2"
+        shift
+        ;;
+      --volgenmodel-iteration=*)
+        _arg_volgenmodel_iteration="${_key##--volgenmodel-iteration=}"
         ;;
       --no-mask-extract|--mask-extract)
         _arg_mask_extract="on"
@@ -625,7 +636,15 @@ if [[ ${_arg_close} == "on" ]]; then
 else
   steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
-steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
+if [[ ! -z ${_arg_volgenmodel_iteration} ]]; then
+  volgenmodel_max_iteration=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
+  if (( _arg_volgenmodel_iteration > volgenmodel_max_iteration)); then
+    failure "--volgenmodel-iteration ${_arg_volgenmodel_iteration} is larger than maximum iteration level of ${volgenmodel_max_iteration} for ${fixedfile1}"
+  fi
+  steps_syn=$(ants_generate_iterations.py --output volgenmodel --volgen-iteration ${_arg_volgenmodel_iteration} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
+else
+  steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
+fi
 
 if [[ ${_arg_skip_linear} == "off" ]]; then
   run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
