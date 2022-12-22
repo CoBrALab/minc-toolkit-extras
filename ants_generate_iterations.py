@@ -212,9 +212,9 @@ elif args.output == 'generic':
       print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
 
 elif args.output == 'volgenmodel':
-    print("--convergence [ {},{},{} ]".format(iterations[args.volgen_iteration], args.convergence, args.convergence_window), end=' \\\n')
-    print("--shrink-factors {}".format(shrinks[args.volgen_iteration]), end=' \\\n')
-    print("--smoothing-sigmas {}mm".format(blurs[args.volgen_iteration]), end=' ')
+    print("--convergence [ {},{},{} ]".format("x".join(iterations[0:args.volgen_iteration+1]), args.convergence, args.convergence_window), end=' \\\n')
+    print("--shrink-factors {}".format("x".join(shrinks[0:args.volgen_iteration+1])), end=' \\\n')
+    print("--smoothing-sigmas {}mm".format("x".join(blurs[0:args.volgen_iteration+1])), end=' ')
 
 else:
     slicestart = [ 0,
