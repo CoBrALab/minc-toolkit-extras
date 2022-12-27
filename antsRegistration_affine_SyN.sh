@@ -639,7 +639,7 @@ fi
 if [[ ! -z ${_arg_volgenmodel_iteration} ]]; then
   volgenmodel_max_iteration=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
   if (( _arg_volgenmodel_iteration > volgenmodel_max_iteration)); then
-    failure "--volgenmodel-iteration ${_arg_volgenmodel_iteration} is larger than maximum iteration level of ${volgenmodel_max_iteration} for ${fixedfile1}"
+    warning "--volgenmodel-iteration ${_arg_volgenmodel_iteration} is larger than maximum iteration level of ${volgenmodel_max_iteration} for ${fixedfile1}, defaulting to final level"
   fi
   steps_syn=$(ants_generate_iterations.py --output volgenmodel --volgen-iteration ${_arg_volgenmodel_iteration} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
 else
