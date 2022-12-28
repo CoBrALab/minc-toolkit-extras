@@ -5,13 +5,13 @@
 # ARG_POSITIONAL_SINGLE([outputbasename],[The basename for the output transforms])
 # ARG_OPTIONAL_SINGLE([moving-mask],[],[Mask for moving image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
-# ARG_OPTIONAL_REPEATED([resampled-output],[o],[Output resampled file, repeat for resampling multispectral outputs])
-# ARG_OPTIONAL_REPEATED([resampled-linear-output],[],[Output resampled file with only linear transform])
-# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename],[com])
+# ARG_OPTIONAL_REPEATED([resampled-output],[o],[Output resampled file(s), repeat for resampling multispectral outputs])
+# ARG_OPTIONAL_REPEATED([resampled-linear-output],[],[Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs])
+# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first],[com])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of linear transform],[affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
-# ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration],[])
-# ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration],[])
+# ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration, pair with --moving in order],[])
+# ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration, pair with --fixed in order],[])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
 # ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[50])
@@ -105,13 +105,13 @@ print_help()
   printf '\t%s\n' "-h, --help: Prints help"
   printf '\t%s\n' "--moving-mask: Mask for moving image (default: 'NOMASK')"
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
-  printf '\t%s\n' "-o, --resampled-output: Output resampled file, repeat for resampling multispectral outputs (empty by default)"
-  printf '\t%s\n' "--resampled-linear-output: Output resampled file with only linear transform (empty by default)"
-  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename (default: 'com')"
+  printf '\t%s\n' "-o, --resampled-output: Output resampled file(s), repeat for resampling multispectral outputs (empty by default)"
+  printf '\t%s\n' "--resampled-linear-output: Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs (empty by default)"
+  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first (default: 'com')"
   printf '\t%s\n' "--linear-type: Type of linear transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
-  printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration (empty by default)"
-  printf '\t%s\n' "--moving: Additional moving images for multispectral registration (empty by default)"
+  printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration, pair with --moving in order (empty by default)"
+  printf '\t%s\n' "--moving: Additional moving images for multispectral registration, pair with --fixed in order (empty by default)"
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
   printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '50')"
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
@@ -503,7 +503,6 @@ for program in ImageMath \
   if ! command -v ${program} &>/dev/null; then
     failure "Required program ${program} not found!"
   fi
-
 done
 
 
@@ -526,26 +525,23 @@ if [[ ! ${#_arg_fixed[@]} -eq ${#_arg_moving[@]} ]]; then
   exit 1
 fi
 
-
 #Check for minc or nifti, make appropriate adjustments of transforms
-if [[ "${_arg_movingfile}" =~ .*"mnc" || "${_arg_fixedfile}" =~ .*"mnc" ]]; then
+if [[ "${_arg_movingfile}" == *mnc && "${_arg_fixedfile}" == *mnc ]]; then
   info "MINC input files detected, antsRegistration will be run with --minc"
   minc_mode="--minc"
-  second_stage_initial="${_arg_outputbasename}0_GenericAffine.xfm"
-  second_stage_final="${_arg_outputbasename}1_NL.xfm"
-  intermediate_resample="${tmpdir}/resample.mnc"
+  output_linear_xfm="${_arg_outputbasename}0_GenericAffine.xfm"
+elif [[ ("${_arg_movingfile}" == *mnc && "${_arg_fixedfile}" != *mnc) || ("${_arg_movingfile}" != *mnc && "${_arg_fixedfile}" == *mnc)  ]]; then
+  fatal "Mixed MINC and non-MINC files detected as input, ITK MINC reader bug currently prevents mixing MINC with any other file type"
 else
   minc_mode=""
-  second_stage_initial="${_arg_outputbasename}0GenericAffine.mat"
-  second_stage_final="${_arg_outputbasename}1Warp.nii.gz"
-  intermediate_resample="${tmpdir}/resample.h5"
+  output_linear_xfm="${_arg_outputbasename}0GenericAffine.mat"
 fi
 
 #Enable verbosity
 if [[ ${_arg_verbose} == "on" ]]; then
-  _arg_verbose="--verbose"
+  _arg_verbose="--verbose 1"
 else
-  _arg_verbose=""
+  _arg_verbose="--verbose 0"
 fi
 
 #Enable histogram matching
@@ -598,8 +594,32 @@ if [[ ${fixedmask} == "NOMASK" && ${movingmask} == "NOMASK" ]]; then
   _no_masks="--no-masks"
 fi
 
+# Expand comma separated list into array
+IFS=', ' read -r -a _arg_initial_transform <<< "${_arg_initial_transform}"
+initial_transform=""
+for initxfm in "${_arg_initial_transform[@]}"; do
+  if [[ ${initxfm} == "com" ]]; then
+    info "Adding Center-of-Mass between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
+    initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ] "
+  elif [[ ${initxfm} == "cov" ]]; then
+    info "Adding Center-of-Volume between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
+    initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ] "
+  elif [[ ${initxfm} == "origin" ]]; then
+    info "Adding Origin alignment between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
+    initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ] "
+  elif [[ -s ${initxfm} ]]; then
+    initial_transform+="--initial-moving-transform ${initxfm} "
+  elif [[ ${initxfm} == "none" ]]; then
+    info "Performing no registration initialization"
+    initial_transform=""
+    break
+  else
+    failure "Registration initalization ${initxfm} unrecognized and not a file"
+  fi
+done
+
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]]))")
-info "Mimimum voxel dimension ${fixed_minimum_resolution}mm"
+info "Mimimum voxel dimension ${fixed_minimum_resolution} mm"
 
 #Calculate Maximum FOV using the size of the fixed image
 #fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 1)\".split(\"x\")]],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile} 2)\".split(\"x\")]])]))")
@@ -611,32 +631,18 @@ ThresholdImage 3 ${fixedfile1} ${tmpdir}/otsu.h5 Otsu 4 ${tmpdir}/bgmask.h5 &> /
 ThresholdImage 3 ${tmpdir}/otsu.h5 ${tmpdir}/otsu.h5 2 Inf 1 0
 LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv &> /dev/null
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
-info "Maximum image feature dimension ${fixed_maximum_resolution}mm"
-
-if [[ "${_arg_initial_transform}" == "com" && ${_arg_close} == "off" ]]; then
-  info "Using Center-of-Mass between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
-  initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ]"
-elif [[ "${_arg_initial_transform}" == "cov" && ${_arg_close} == "off" ]]; then
-  info "Using Center-of-Volume between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
-  initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ]"
-elif [[ "${_arg_initial_transform}" == "origin" && ${_arg_close} == "off" ]]; then
-  info "Using Origin alignment between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
-  initial_transform="--initial-moving-transform [ ${fixedfile1},${movingfile1},2 ]"
-elif [[ -s "${_arg_initial_transform}" ]]; then
-  info "Using file ${_arg_initial_transform} for registration initialization"
-  initial_transform="--initial-moving-transform ${_arg_initial_transform}"
-else
-  info "Performing no registration initialization"
-  initial_transform=""
-fi
+info "Maximum image feature dimension ${fixed_maximum_resolution} mm"
 
 # Generate steps for registration
 if [[ ${_arg_close} == "on" ]]; then
+  if [[ -n ${initial_transform} ]]; then
+    warning "Registration parameter --close specified but --initial-transform is not \"none\" ensure this is what you want"
+  fi
   steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
 else
   steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
 fi
-if [[ ! -z ${_arg_volgenmodel_iteration} ]]; then
+if [[ -n ${_arg_volgenmodel_iteration} ]]; then
   volgenmodel_max_iteration=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
   if (( _arg_volgenmodel_iteration > volgenmodel_max_iteration)); then
     warning "--volgenmodel-iteration ${_arg_volgenmodel_iteration} is larger than maximum iteration level of ${volgenmodel_max_iteration} for ${fixedfile1}, defaulting to final level"
@@ -648,24 +654,60 @@ fi
 
 if [[ ${_arg_skip_linear} == "off" ]]; then
   run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
-    --output [ ${_arg_outputbasename} ] \
+    --output [ ${tmpdir}/$(basename ${_arg_outputbasename}) ] \
     --use-histogram-matching ${_arg_histogram_matching} \
     ${initial_transform} \
     $(eval echo ${steps_linear})"
   debug "Linear registration command"
   debug "$(tr -s "[:blank:]" <<< ${run_command})"
   ${run_command}
-else
-  if [[ -s "${_arg_initial_transform}" ]]; then
-    cp -f "${_arg_initial_transform}" "${second_stage_initial}" || true
-  else
-    if [[ -n ${minc_mode} ]]; then
-      #Generate identity transform
-      param2xfm -clobber "${second_stage_initial}"
-    else
-      ImageMath 3 "${second_stage_initial}" MakeAffineTransform 1
+
+  # Generate new transform stack
+  transform_stack=()
+  for file in ${tmpdir}/$(basename ${_arg_outputbasename}){99..0}{_GenericAffine.xfm,_NL.xfm,GenericAffine.mat,Warp.nii.gz}; do
+    if [[ -s ${file} ]]; then
+      transform_stack+=("${file}")
+      cp -f ${file} $(dirname ${_arg_outputbasename})/$(basename ${file})
     fi
+  done
+  second_stage_initial=${transform_stack[@]/#/--initial-moving-transform }
+
+else
+  if [[ -z ${initial_transform} ]]; then
+     # Generate identity transform
+     if [[ -n ${minc_mode} ]]; then
+       param2xfm -clobber "${output_linear_xfm}"
+     else
+       ImageMath 3 "${output_linear_xfm}" MakeAffineTransform 1
+     fi
+     second_stage_initial="--initial-moving-transform ${output_linear_xfm}"
+  else
+    second_stage_initial=${initial_transform}
   fi
+fi
+
+# If requested, do linear resample
+if [[ ${_arg_resampled_linear_output[0]-} && ${_arg_skip_nonlinear} == "off" ]]; then
+    info "Generating linear transform resampled output of ${_arg_movingfile} to $(basename ${_arg_resampled_linear_output[0]})"
+    antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} --interpolation BSpline[5] \
+      -i ${_arg_movingfile} \
+      -r ${_arg_fixedfile} \
+      ${transform_stack[@]/#/--transform } \
+      -o ${tmpdir}/resample.h5
+    ThresholdImage 3 ${tmpdir}/resample.h5 "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
+    ImageMath 3 "${_arg_resampled_linear_output[0]}" m ${tmpdir}/resample.h5 "${tmpdir}/clampmask.h5"
+    i=1
+    while (( i < ${#_arg_resampled_linear_output[@]} )); do
+    info "Generating linear transform resampled output of ${_arg_moving[i-1]} to $(basename ${_arg_resampled_linear_output[i]})"
+        antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} --interpolation BSpline[5] \
+          -i ${_arg_moving[i-1]} \
+          -r ${_arg_fixed[i-1]} \
+          ${transform_stack[@]/#/--transform } \
+          -o ${tmpdir}/resample.h5
+      ThresholdImage 3 ${tmpdir}/resample.h5 "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
+      ImageMath 3 "${_arg_resampled_linear_output[i]}" m ${tmpdir}/resample.h5 "${tmpdir}/clampmask.h5"
+      ((++i))
+    done
 fi
 
 # Setup SyN image pairs
@@ -679,39 +721,11 @@ while (( i < ${#_arg_fixed[@]} )); do
   ((++i))
 done
 
-# If requested, do linear resample
-if [[ ${_arg_resampled_linear_output[0]-} && ${_arg_skip_nonlinear} == "off" ]]; then
-  info "Generating linear transform resampled output to $(basename ${_arg_resampled_linear_output[0]})"
-  antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} \
-    -i ${_arg_movingfile} \
-    -r ${_arg_fixedfile} \
-    -t "${second_stage_initial}" \
-    -o "${intermediate_resample}" \
-    -n BSpline[5]
-  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
-  ImageMath 3 "${_arg_resampled_linear_output[0]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
-  i=1
-  while (( i < ${#_arg_resampled_linear_output[@]} )); do
-  info "Generating linear transform resampled output to $(basename ${_arg_resampled_linear_output[i]})"
-      antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} \
-        -i ${_arg_moving[i-1]} \
-        -r ${_arg_fixed[i-1]} \
-        -t "${second_stage_initial}" \
-        -o "${intermediate_resample}" \
-        -n BSpline[5]
-    ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
-    ImageMath 3 "${_arg_resampled_linear_output[i]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
-    ((++i))
-  done
-fi
-
-
-
 if [[ ${_arg_skip_nonlinear} == "off" ]]; then
   run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
-    --output [ ${_arg_outputbasename} ] \
+    --output [ ${tmpdir}/$(basename ${_arg_outputbasename}) ] \
     --use-histogram-matching ${_arg_histogram_matching} \
-    --initial-moving-transform "${second_stage_initial}" \
+    ${second_stage_initial} \
     --transform SyN[ ${_arg_syn_control} ] \
     ${syn_metric} \
     $(eval echo ${steps_syn}) \
@@ -721,26 +735,36 @@ if [[ ${_arg_skip_nonlinear} == "off" ]]; then
     ${run_command}
 fi
 
-if [[ ${_arg_resampled_output[0]-} ]]; then
-  info "Generating linear + non-linear resampled output to $(basename ${_arg_resampled_output[0]})"
-  if [[ ${_arg_skip_nonlinear} == "off" ]]; then
-    antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
-  else
-    antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_movingfile} -r ${_arg_fixedfile} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
+# Generate new transform stack
+transform_stack=()
+for file in ${tmpdir}/$(basename ${_arg_outputbasename}){99..0}{_GenericAffine.xfm,_NL.xfm,GenericAffine.mat,Warp.nii.gz}; do
+  if [[ -s ${file} ]]; then
+    transform_stack+=("${file}")
   fi
-  ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
-  ImageMath 3 "${_arg_resampled_output[0]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+done
+
+cp -f ${tmpdir}/$(basename ${_arg_outputbasename})* $(dirname ${_arg_outputbasename})
+
+if [[ ${_arg_resampled_output[0]-} ]]; then
+  info "Generating final resampled output of ${_arg_movingfile} to $(basename ${_arg_resampled_output[0]})"
+  antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} --interpolation BSpline[5] \
+    -i ${_arg_movingfile} \
+    -r ${_arg_fixedfile} \
+    ${transform_stack[@]/#/--transform } \
+    -o ${tmpdir}/resample.h5
+  ThresholdImage 3 ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5 1e-12 Inf 1 0
+  ImageMath 3 "${_arg_resampled_output[0]}" m ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5
 
   i=1
   while (( i < ${#_arg_resampled_output[@]} )); do
-    info "Generating linear + non-linear resampled output to $(basename ${_arg_resampled_output[i]})"
-    if [[ ${_arg_skip_nonlinear} == "off" ]]; then
-      antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_moving[i-1]} -r ${_arg_fixed[i-1]} -t "${second_stage_final}" -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
-    else
-      antsApplyTransforms -d 3 ${_arg_float} -i ${_arg_moving[i-1]} -r ${_arg_fixed[i-1]} -t "${second_stage_initial}" -o "${intermediate_resample}" -n BSpline[5] ${_arg_verbose}
-    fi
-    ThresholdImage 3 "${intermediate_resample}" "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
-    ImageMath 3 "${_arg_resampled_output[i]}" m "${intermediate_resample}" "${tmpdir}/clampmask.h5"
+    info "Generating final resampled output of ${_arg_moving[i-1]} to $(basename ${_arg_resampled_output[i]})"
+    antsApplyTransforms -d 3 ${_arg_float} ${_arg_verbose} --interpolation BSpline[5] \
+      -i ${_arg_moving[i-1]} \
+      -r ${_arg_fixed[i-1]} \
+      ${transform_stack[@]/#/--transform } \
+      -o ${tmpdir}/resample.h5
+    ThresholdImage 3 ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5 1e-12 Inf 1 0
+    ImageMath 3 "${_arg_resampled_output[i]}" m ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5
     ((++i))
   done
 fi
