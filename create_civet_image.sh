@@ -9,6 +9,7 @@
 # ARG_OPTIONAL_SINGLE([left-mask],[],[Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded.],[])
 # ARG_OPTIONAL_SINGLE([right-mask],[],[Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded.],[])
 # ARG_OPTIONAL_SINGLE([colourbar-labels],[],[Comma separated set of text labels which will be printed next to colourbar],[FDR 5%,FDR 1%])
+# ARG_OPTIONAL_SINGLE([image-label],[],[Label placed at the top of the image, defaults to column name of left statmap],[LEFT_COLUMN])
 # ARG_OPTIONAL_BOOLEAN([annotate-directions],[],[Label anatomical directions in image],[on])
 # ARG_OPTIONAL_BOOLEAN([draw-colourbar],[],[Draw colourbar on image],[on])
 # ARG_POSITIONAL_SINGLE([left-obj],[The left object file])
@@ -51,6 +52,7 @@ _arg_right_thresholds="MIN,MAX"
 _arg_left_mask=
 _arg_right_mask=
 _arg_colourbar_labels="FDR 5%,FDR 1%"
+_arg_image_label="LEFT_COLUMN"
 _arg_annotate_directions="on"
 _arg_draw_colourbar="on"
 _arg_debug="off"
@@ -59,7 +61,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "Colourize MNI objects with statistical maps"
-  printf 'Usage: %s [--colourmap <arg>] [--left-statmap <arg>] [--right-statmap <arg>] [--left-thresholds <arg>] [--right-thresholds <arg>] [--left-mask <arg>] [--right-mask <arg>] [--colourbar-labels <arg>] [--(no-)annotate-directions] [--(no-)draw-colourbar] [-h|--help] [-d|--(no-)debug] <left-obj> <right-obj> <output>\n' "$0"
+  printf 'Usage: %s [--colourmap <arg>] [--left-statmap <arg>] [--right-statmap <arg>] [--left-thresholds <arg>] [--right-thresholds <arg>] [--left-mask <arg>] [--right-mask <arg>] [--colourbar-labels <arg>] [--image-label <arg>] [--(no-)annotate-directions] [--(no-)draw-colourbar] [-h|--help] [-d|--(no-)debug] <left-obj> <right-obj> <output>\n' "$0"
   printf '\t%s\n' "<left-obj>: The left object file"
   printf '\t%s\n' "<right-obj>: The right object file"
   printf '\t%s\n' "<output>: The filename for the output image"
@@ -71,6 +73,7 @@ print_help()
   printf '\t%s\n' "--left-mask: Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded. (no default)"
   printf '\t%s\n' "--right-mask: Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded. (no default)"
   printf '\t%s\n' "--colourbar-labels: Comma separated set of text labels which will be printed next to colourbar (default: 'FDR 5%,FDR 1%')"
+  printf '\t%s\n' "--image-label: Label placed at the top of the image, defaults to column name of left statmap (default: 'LEFT_COLUMN')"
   printf '\t%s\n' "--annotate-directions, --no-annotate-directions: Label anatomical directions in image (on by default)"
   printf '\t%s\n' "--draw-colourbar, --no-draw-colourbar: Draw colourbar on image (on by default)"
   printf '\t%s\n' "-h, --help: Prints help"
@@ -148,6 +151,14 @@ parse_commandline()
         ;;
       --colourbar-labels=*)
         _arg_colourbar_labels="${_key##--colourbar-labels=}"
+        ;;
+      --image-label)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_image_label="$2"
+        shift
+        ;;
+      --image-label=*)
+        _arg_image_label="${_key##--image-label=}"
         ;;
       --no-annotate-directions|--annotate-directions)
         _arg_annotate_directions="on"
@@ -711,6 +722,18 @@ else
   colourbar_label_high=()
 fi
 
+# Draw a label
+if [[ -n ${_arg_image_label} ]]; then
+  if [[ ${_arg_image_label} == "LEFT_COLUMN" ]]; then
+    column=${_arg_left_statmap#*:}
+    image_label="-gravity North -annotate 0 ${column}"
+  else
+    image_label="-gravity North -annotate 0 ${_arg_image_label}"
+  fi
+else
+  image_label=""
+fi
+
 # Should we draw annotations on the image
 if [[ ${_arg_annotate_directions} == "on" ]]; then
   annotate_si="""+repage -gravity west -annotate 0 L \
@@ -741,6 +764,7 @@ convert -background black \
   ${colourbar_draw} \
   "${colourbar_label_low[@]}" \
   "${colourbar_label_high[@]}" \
+  ${image_label} \
   -flatten ${tmpdir}/final.mpc
 
 convert ${tmpdir}/final.mpc ${_arg_output}
