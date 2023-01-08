@@ -1,22 +1,22 @@
 #!/bin/bash
 
 #
-# ARG_OPTIONAL_SINGLE([colourmap],[],[Colour map filename to colourize object, provide comma-separated pair for negative/positive map.],[spectral])
+# ARG_OPTIONAL_SINGLE([colourmap],[],[Colour map name, or FILE to colourize objects, provide comma-separated pair for negative,positive map. See 'colour_object' for built in options.],[spectral])
 # ARG_OPTIONAL_SINGLE([left-statmap],[],[Statistical map file to use for left object, use ":columnname" or ":columnnumber" to select column.],[])
 # ARG_OPTIONAL_SINGLE([right-statmap],[],[Statistical map file to use for left object, use ":columnname" or ":columnnumber" to select column.],[])
-# ARG_OPTIONAL_SINGLE([left-thresholds],[],[Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
-# ARG_OPTIONAL_SINGLE([right-thresholds],[],[Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
+# ARG_OPTIONAL_SINGLE([left-thresholds],[],[Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
+# ARG_OPTIONAL_SINGLE([right-thresholds],[],[Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
 # ARG_OPTIONAL_SINGLE([left-mask],[],[Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded.],[])
 # ARG_OPTIONAL_SINGLE([right-mask],[],[Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded.],[])
-# ARG_OPTIONAL_SINGLE([colourbar-labels],[],[Comma separated set of text labels which will be printed next to colourbar],[FDR 5%,FDR 1%])
-# ARG_OPTIONAL_SINGLE([image-label],[],[Label placed at the top of the image, defaults to column name of left statmap],[LEFT_COLUMN])
-# ARG_OPTIONAL_BOOLEAN([annotate-directions],[],[Label anatomical directions in image],[on])
-# ARG_OPTIONAL_BOOLEAN([draw-colourbar],[],[Draw colourbar on image],[on])
-# ARG_POSITIONAL_SINGLE([left-obj],[The left object file])
-# ARG_POSITIONAL_SINGLE([right-obj],[The right object file])
-# ARG_POSITIONAL_SINGLE([output],[The filename for the output image])
+# ARG_OPTIONAL_SINGLE([colourbar-labels],[],[Comma separated set of text labels which will be printed next to colourbar.],[FDR 5%,FDR 1%])
+# ARG_OPTIONAL_SINGLE([image-label],[],[Label placed at the top of the image, defaults to column name of left statmap.],[LEFT_COLUMN])
+# ARG_OPTIONAL_BOOLEAN([annotate-directions],[],[Label anatomical directions in image.],[on])
+# ARG_OPTIONAL_BOOLEAN([draw-colourbar],[],[Draw colourbar on image.],[on])
+# ARG_POSITIONAL_SINGLE([left-obj],[The left object file.])
+# ARG_POSITIONAL_SINGLE([right-obj],[The right object file.])
+# ARG_POSITIONAL_SINGLE([output],[The filename for the output image.])
 # ARG_HELP([Colourize MNI objects with statistical maps])
-# ARG_OPTIONAL_BOOLEAN([debug],[d],[Show all internal comands and logic for debug],[])
+# ARG_OPTIONAL_BOOLEAN([debug],[d],[Show all internal comands and logic for debug.],[])
 # ARGBASH_SET_INDENT([  ])
 # ARGBASH_GO()
 # needed because of Argbash --> m4_ignore([
@@ -62,22 +62,22 @@ print_help()
 {
   printf '%s\n' "Colourize MNI objects with statistical maps"
   printf 'Usage: %s [--colourmap <arg>] [--left-statmap <arg>] [--right-statmap <arg>] [--left-thresholds <arg>] [--right-thresholds <arg>] [--left-mask <arg>] [--right-mask <arg>] [--colourbar-labels <arg>] [--image-label <arg>] [--(no-)annotate-directions] [--(no-)draw-colourbar] [-h|--help] [-d|--(no-)debug] <left-obj> <right-obj> <output>\n' "$0"
-  printf '\t%s\n' "<left-obj>: The left object file"
-  printf '\t%s\n' "<right-obj>: The right object file"
-  printf '\t%s\n' "<output>: The filename for the output image"
-  printf '\t%s\n' "--colourmap: Colour map filename to colourize object, provide comma-separated pair for negative/positive map. (default: 'spectral')"
+  printf '\t%s\n' "<left-obj>: The left object file."
+  printf '\t%s\n' "<right-obj>: The right object file."
+  printf '\t%s\n' "<output>: The filename for the output image."
+  printf '\t%s\n' "--colourmap: Colour map name, or FILE to colourize objects, provide comma-separated pair for negative,positive map. See 'colour_object' for built in options. (default: 'spectral')"
   printf '\t%s\n' "--left-statmap: Statistical map file to use for left object, use \":columnname\" or \":columnnumber\" to select column. (no default)"
   printf '\t%s\n' "--right-statmap: Statistical map file to use for left object, use \":columnname\" or \":columnnumber\" to select column. (no default)"
-  printf '\t%s\n' "--left-thresholds: Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
-  printf '\t%s\n' "--right-thresholds: Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
+  printf '\t%s\n' "--left-thresholds: Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
+  printf '\t%s\n' "--right-thresholds: Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
   printf '\t%s\n' "--left-mask: Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded. (no default)"
   printf '\t%s\n' "--right-mask: Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded. (no default)"
-  printf '\t%s\n' "--colourbar-labels: Comma separated set of text labels which will be printed next to colourbar (default: 'FDR 5%,FDR 1%')"
-  printf '\t%s\n' "--image-label: Label placed at the top of the image, defaults to column name of left statmap (default: 'LEFT_COLUMN')"
-  printf '\t%s\n' "--annotate-directions, --no-annotate-directions: Label anatomical directions in image (on by default)"
-  printf '\t%s\n' "--draw-colourbar, --no-draw-colourbar: Draw colourbar on image (on by default)"
+  printf '\t%s\n' "--colourbar-labels: Comma separated set of text labels which will be printed next to colourbar. (default: 'FDR 5%,FDR 1%')"
+  printf '\t%s\n' "--image-label: Label placed at the top of the image, defaults to column name of left statmap. (default: 'LEFT_COLUMN')"
+  printf '\t%s\n' "--annotate-directions, --no-annotate-directions: Label anatomical directions in image. (on by default)"
+  printf '\t%s\n' "--draw-colourbar, --no-draw-colourbar: Draw colourbar on image. (on by default)"
   printf '\t%s\n' "-h, --help: Prints help"
-  printf '\t%s\n' "-d, --debug, --no-debug: Show all internal comands and logic for debug (off by default)"
+  printf '\t%s\n' "-d, --debug, --no-debug: Show all internal comands and logic for debug. (off by default)"
 }
 
 
