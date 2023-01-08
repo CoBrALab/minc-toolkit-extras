@@ -523,13 +523,13 @@ extension="${filename##*.}"
 #Pick out column
 case $extension in
   csv)
-    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/left.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/left
     ;;
   vertstats)
-    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/left.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/left
     ;;
   txt)
-    cut -d " " -f ${column} ${filename} > ${tmpdir}/left.unmasked
+    cut -d " " -f ${column} ${filename} > ${tmpdir}/left
     ;;
 esac
 
@@ -540,29 +540,18 @@ extension="${filename##*.}"
 #Pick out column
 case $extension in
   csv)
-    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/right.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/right
     ;;
   vertstats)
-    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/right.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/right
     ;;
   txt)
-    cut -d " " -f ${column} ${filename} > ${tmpdir}/right.unmasked
+    cut -d " " -f ${column} ${filename} > ${tmpdir}/right
     ;;
 esac
 
 
-# If masking is supplied, mask the outputs
-if [[ -s ${_arg_left_mask} ]]; then
-  vertstats_math -old_style_file -mult ${_arg_left_mask} ${tmpdir}/left.unmasked ${tmpdir}/left.final
-else
-  cp -s ${tmpdir}/left.unmasked ${tmpdir}/left.final
-fi
 
-if [[ -s ${_arg_right_mask} ]]; then
-  vertstats_math -old_style_file -mult ${_arg_right_mask} ${tmpdir}/right.unmasked ${tmpdir}/right.final
-else
-  cp -s ${tmpdir}/right.unmasked ${tmpdir}/right.final
-fi
 
 # Extract colourmap option into an array
 
@@ -574,11 +563,11 @@ if [[  ${#_arg_colourmap[@]} == 2 ]]; then
   threshold_high=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
 
   if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left.final | sort -g | head -1 || true)
+    threshold_low=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left | sort -g | head -1 || true)
   fi
 
   if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left.final | sort -g | tail -1 || true)
+    threshold_high=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left | sort -g | tail -1 || true)
   fi
 
   if [[ -s ${_arg_colourmap[0]} ]]; then
@@ -587,25 +576,25 @@ if [[  ${#_arg_colourmap[@]} == 2 ]]; then
     colourmap="${_arg_colourmap[0]}"
   fi
 
-  colour_object ${_arg_left_obj} ${tmpdir}/left.final ${tmpdir}/left_negative.obj ${colourmap} -${threshold_low} -${threshold_high} white
+  colour_object ${_arg_left_obj} ${tmpdir}/left ${tmpdir}/left_negative.obj ${colourmap} -${threshold_low} -${threshold_high} white
 
   if [[ -s ${_arg_colourmap[1]} ]]; then
     colourmap="user ${_arg_colourmap[1]}"
   else
     colourmap="${_arg_colourmap[1]}"
   fi
-  colour_object ${tmpdir}/left_negative.obj ${tmpdir}/left.final ${tmpdir}/left_final.obj ${colourmap} ${threshold_low} ${threshold_high} transparent transparent
+  colour_object ${tmpdir}/left_negative.obj ${tmpdir}/left ${tmpdir}/left_unmasked.obj ${colourmap} ${threshold_low} ${threshold_high} transparent transparent
 
   # Extract the threshold levels for left from option
   threshold_low=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 1)
   threshold_high=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
 
   if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right.final | sort -g | head -1 || true)
+    threshold_low=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right | sort -g | head -1 || true)
   fi
 
   if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right.final | sort -g | tail -1 || true)
+    threshold_high=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right | sort -g | tail -1 || true)
   fi
 
   if [[ -s ${_arg_colourmap[0]} ]]; then
@@ -614,14 +603,14 @@ if [[  ${#_arg_colourmap[@]} == 2 ]]; then
     colourmap="${_arg_colourmap[0]}"
   fi
 
-  colour_object ${_arg_right_obj} ${tmpdir}/right.final ${tmpdir}/right_negative.obj ${colourmap} -${threshold_low} -${threshold_high} white
+  colour_object ${_arg_right_obj} ${tmpdir}/right ${tmpdir}/right_negative.obj ${colourmap} -${threshold_low} -${threshold_high} white
 
   if [[ -s ${_arg_colourmap[1]} ]]; then
     colourmap="user ${_arg_colourmap[1]}"
   else
     colourmap="${_arg_colourmap[1]}"
   fi
-  colour_object ${tmpdir}/right_negative.obj ${tmpdir}/right.final ${tmpdir}/right_final.obj ${colourmap} ${threshold_low} ${threshold_high} transparent transparent
+  colour_object ${tmpdir}/right_negative.obj ${tmpdir}/right ${tmpdir}/right_unmasked.obj ${colourmap} ${threshold_low} ${threshold_high} transparent transparent
 
 else
 
@@ -636,28 +625,40 @@ else
   threshold_high=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
 
   if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(sort -g ${tmpdir}/left.final | head -1 || true)
+    threshold_low=$(sort -g ${tmpdir}/left | head -1 || true)
   fi
 
   if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(sort -g ${tmpdir}/left.final | tail -1 || true)
+    threshold_high=$(sort -g ${tmpdir}/left | tail -1 || true)
   fi
 
-  colour_object ${_arg_left_obj} ${tmpdir}/left.final ${tmpdir}/left_final.obj ${colourmap} ${threshold_low} ${threshold_high}
+  colour_object ${_arg_left_obj} ${tmpdir}/left ${tmpdir}/left_unmasked.obj ${colourmap} ${threshold_low} ${threshold_high}
 
   # Extract the threshold levels for right from option
   threshold_low=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 1)
   threshold_high=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 2)
 
   if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(sort -g ${tmpdir}/right.final | head -1 || true)
+    threshold_low=$(sort -g ${tmpdir}/right | head -1 || true)
   fi
 
   if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(sort -g ${tmpdir}/right.final | tail -1 || true)
+    threshold_high=$(sort -g ${tmpdir}/right | tail -1 || true)
   fi
 
-  colour_object ${_arg_right_obj} ${tmpdir}/right.final ${tmpdir}/right_final.obj ${colourmap} ${threshold_low} ${threshold_high}
+  colour_object ${_arg_right_obj} ${tmpdir}/right ${tmpdir}/right_unmasked.obj ${colourmap} ${threshold_low} ${threshold_high}
+fi
+
+if [[ -s ${_arg_left_mask} ]]; then
+  colour_object ${tmpdir}/left_unmasked.obj ${_arg_left_mask} ${tmpdir}/left_final.obj gray 0.5 0.5 white transparent
+else
+  cp -s ${tmpdir}/left_unmasked.obj ${tmpdir}/left_final.obj
+fi
+
+if [[ -s ${_arg_right_mask} ]]; then
+  colour_object ${tmpdir}/right_unmasked.obj ${_arg_right_mask} ${tmpdir}/right_final.obj gray 0.5 0.5 white transparent
+else
+  cp -s ${tmpdir}/right_unmasked.obj ${tmpdir}/right_final.obj
 fi
 
 # Generate views
