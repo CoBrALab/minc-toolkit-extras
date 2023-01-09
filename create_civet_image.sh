@@ -508,8 +508,7 @@ function finish() {
 trap finish EXIT
 
 # Prefight check for required programs
-for program in awk \
-  convert colour_object; do
+for program in awk convert colour_object ray_trace; do
   if ! command -v ${program} &>/dev/null; then
     failure "Required program ${program} not found!"
   fi
