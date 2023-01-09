@@ -785,6 +785,11 @@ convert -background black \
   ${image_label[@]} \
   -flatten ${tmpdir}/final.mpc
 
-convert ${tmpdir}/final.mpc ${_arg_output}
+
+if [[ ${_arg_output##*.} = "jpg" ]]; then
+  convert -strip -interlace Plane -quality 85% -sampling-factor 4:2:0 -define jpeg:dct-method=float ${tmpdir}/final.mpc ${_arg_output}
+else
+  convert ${tmpdir}/final.mpc ${_arg_output}
+fi
 
 # ] <-- needed because of Argbash
