@@ -740,12 +740,16 @@ fi
 if [[ -n ${_arg_image_label} ]]; then
   if [[ ${_arg_image_label} == "LEFT_COLUMN" ]]; then
     column=${_arg_left_statmap#*:}
-    image_label="-gravity North -annotate 0 ${column}"
+    if [[ -n ${column} ]]; then
+      image_label=(-gravity North -annotate 0 "${column}")
+    else
+      image_label=()
+    fi
   else
-    image_label="-gravity North -annotate 0 ${_arg_image_label}"
+    image_label=(-gravity North -annotate 0 "${_arg_image_label}")
   fi
 else
-  image_label=""
+  image_label=()
 fi
 
 # Should we draw annotations on the image
@@ -778,7 +782,7 @@ convert -background black \
   ${colourbar_draw} \
   "${colourbar_label_low[@]}" \
   "${colourbar_label_high[@]}" \
-  ${image_label} \
+  ${image_label[@]} \
   -flatten ${tmpdir}/final.mpc
 
 convert ${tmpdir}/final.mpc ${_arg_output}
