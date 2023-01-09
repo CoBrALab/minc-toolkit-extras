@@ -1,22 +1,22 @@
 #!/bin/bash
 
 #
-# ARG_OPTIONAL_SINGLE([colourmap],[],[Colour map filename to colourize object, provide comma-separated pair for negative/positive map.],[spectral])
+# ARG_OPTIONAL_SINGLE([colourmap],[],[Colour map name, or FILE to colourize objects, provide comma-separated pair for negative,positive map. See 'colour_object' for built in options.],[spectral])
 # ARG_OPTIONAL_SINGLE([left-statmap],[],[Statistical map file to use for left object, use ":columnname" or ":columnnumber" to select column.],[])
 # ARG_OPTIONAL_SINGLE([right-statmap],[],[Statistical map file to use for left object, use ":columnname" or ":columnnumber" to select column.],[])
-# ARG_OPTIONAL_SINGLE([left-thresholds],[],[Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
-# ARG_OPTIONAL_SINGLE([right-thresholds],[],[Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
+# ARG_OPTIONAL_SINGLE([left-thresholds],[],[Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
+# ARG_OPTIONAL_SINGLE([right-thresholds],[],[Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range.],[MIN,MAX])
 # ARG_OPTIONAL_SINGLE([left-mask],[],[Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded.],[])
 # ARG_OPTIONAL_SINGLE([right-mask],[],[Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded.],[])
-# ARG_OPTIONAL_SINGLE([colourbar-labels],[],[Comma separated set of text labels which will be printed next to colourbar],[FDR 5%,FDR 1%])
-# ARG_OPTIONAL_SINGLE([image-label],[],[Label placed at the top of the image, defaults to column name of left statmap],[LEFT_COLUMN])
-# ARG_OPTIONAL_BOOLEAN([annotate-directions],[],[Label anatomical directions in image],[on])
-# ARG_OPTIONAL_BOOLEAN([draw-colourbar],[],[Draw colourbar on image],[on])
-# ARG_POSITIONAL_SINGLE([left-obj],[The left object file])
-# ARG_POSITIONAL_SINGLE([right-obj],[The right object file])
-# ARG_POSITIONAL_SINGLE([output],[The filename for the output image])
+# ARG_OPTIONAL_SINGLE([colourbar-labels],[],[Comma separated set of text labels which will be printed next to colourbar.],[FDR 5%,FDR 1%])
+# ARG_OPTIONAL_SINGLE([image-label],[],[Label placed at the top of the image, defaults to column name of left statmap.],[LEFT_COLUMN])
+# ARG_OPTIONAL_BOOLEAN([annotate-directions],[],[Label anatomical directions in image.],[on])
+# ARG_OPTIONAL_BOOLEAN([draw-colourbar],[],[Draw colourbar on image.],[on])
+# ARG_POSITIONAL_SINGLE([left-obj],[The left object file.])
+# ARG_POSITIONAL_SINGLE([right-obj],[The right object file.])
+# ARG_POSITIONAL_SINGLE([output],[The filename for the output image.])
 # ARG_HELP([Colourize MNI objects with statistical maps])
-# ARG_OPTIONAL_BOOLEAN([debug],[d],[Show all internal comands and logic for debug],[])
+# ARG_OPTIONAL_BOOLEAN([debug],[d],[Show all internal comands and logic for debug.],[])
 # ARGBASH_SET_INDENT([  ])
 # ARGBASH_GO()
 # needed because of Argbash --> m4_ignore([
@@ -62,22 +62,22 @@ print_help()
 {
   printf '%s\n' "Colourize MNI objects with statistical maps"
   printf 'Usage: %s [--colourmap <arg>] [--left-statmap <arg>] [--right-statmap <arg>] [--left-thresholds <arg>] [--right-thresholds <arg>] [--left-mask <arg>] [--right-mask <arg>] [--colourbar-labels <arg>] [--image-label <arg>] [--(no-)annotate-directions] [--(no-)draw-colourbar] [-h|--help] [-d|--(no-)debug] <left-obj> <right-obj> <output>\n' "$0"
-  printf '\t%s\n' "<left-obj>: The left object file"
-  printf '\t%s\n' "<right-obj>: The right object file"
-  printf '\t%s\n' "<output>: The filename for the output image"
-  printf '\t%s\n' "--colourmap: Colour map filename to colourize object, provide comma-separated pair for negative/positive map. (default: 'spectral')"
+  printf '\t%s\n' "<left-obj>: The left object file."
+  printf '\t%s\n' "<right-obj>: The right object file."
+  printf '\t%s\n' "<output>: The filename for the output image."
+  printf '\t%s\n' "--colourmap: Colour map name, or FILE to colourize objects, provide comma-separated pair for negative,positive map. See 'colour_object' for built in options. (default: 'spectral')"
   printf '\t%s\n' "--left-statmap: Statistical map file to use for left object, use \":columnname\" or \":columnnumber\" to select column. (no default)"
   printf '\t%s\n' "--right-statmap: Statistical map file to use for left object, use \":columnname\" or \":columnnumber\" to select column. (no default)"
-  printf '\t%s\n' "--left-thresholds: Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
-  printf '\t%s\n' "--right-thresholds: Comma separated thresholds which map statmap to colourmap, will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
+  printf '\t%s\n' "--left-thresholds: Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
+  printf '\t%s\n' "--right-thresholds: Comma separated thresholds which map statmap to colourmap, absolute values will be used on negative and positive side for diverging colourmaps, MIN and MAX to use detected data range. (default: 'MIN,MAX')"
   printf '\t%s\n' "--left-mask: Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded. (no default)"
   printf '\t%s\n' "--right-mask: Binary mask file of same length as statmaps, which will be used to zero-out regions which should be excluded. (no default)"
-  printf '\t%s\n' "--colourbar-labels: Comma separated set of text labels which will be printed next to colourbar (default: 'FDR 5%,FDR 1%')"
-  printf '\t%s\n' "--image-label: Label placed at the top of the image, defaults to column name of left statmap (default: 'LEFT_COLUMN')"
-  printf '\t%s\n' "--annotate-directions, --no-annotate-directions: Label anatomical directions in image (on by default)"
-  printf '\t%s\n' "--draw-colourbar, --no-draw-colourbar: Draw colourbar on image (on by default)"
+  printf '\t%s\n' "--colourbar-labels: Comma separated set of text labels which will be printed next to colourbar. (default: 'FDR 5%,FDR 1%')"
+  printf '\t%s\n' "--image-label: Label placed at the top of the image, defaults to column name of left statmap. (default: 'LEFT_COLUMN')"
+  printf '\t%s\n' "--annotate-directions, --no-annotate-directions: Label anatomical directions in image. (on by default)"
+  printf '\t%s\n' "--draw-colourbar, --no-draw-colourbar: Draw colourbar on image. (on by default)"
   printf '\t%s\n' "-h, --help: Prints help"
-  printf '\t%s\n' "-d, --debug, --no-debug: Show all internal comands and logic for debug (off by default)"
+  printf '\t%s\n' "-d, --debug, --no-debug: Show all internal comands and logic for debug. (off by default)"
 }
 
 
@@ -508,8 +508,7 @@ function finish() {
 trap finish EXIT
 
 # Prefight check for required programs
-for program in awk \
-  convert colour_object; do
+for program in awk convert colour_object ray_trace; do
   if ! command -v ${program} &>/dev/null; then
     failure "Required program ${program} not found!"
   fi
@@ -523,13 +522,13 @@ extension="${filename##*.}"
 #Pick out column
 case $extension in
   csv)
-    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/left.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/left
     ;;
   vertstats)
-    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/left.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/left
     ;;
   txt)
-    cut -d " " -f ${column} ${filename} > ${tmpdir}/left.unmasked
+    cut -d " " -f ${column} ${filename} > ${tmpdir}/left
     ;;
 esac
 
@@ -540,88 +539,62 @@ extension="${filename##*.}"
 #Pick out column
 case $extension in
   csv)
-    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/right.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptcsv") ${filename} > ${tmpdir}/right
     ;;
   vertstats)
-    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/right.unmasked
+    awk -v target=${column} -f <(printf "$awkscriptvertstats") ${filename} > ${tmpdir}/right
     ;;
   txt)
-    cut -d " " -f ${column} ${filename} > ${tmpdir}/right.unmasked
+    cut -d " " -f ${column} ${filename} > ${tmpdir}/right
     ;;
 esac
 
-
-# If masking is supplied, mask the outputs
-if [[ -s ${_arg_left_mask} ]]; then
-  vertstats_math -old_style_file -mult ${_arg_left_mask} ${tmpdir}/left.unmasked ${tmpdir}/left.final
-else
-  cp -s ${tmpdir}/left.unmasked ${tmpdir}/left.final
-fi
-
-if [[ -s ${_arg_right_mask} ]]; then
-  vertstats_math -old_style_file -mult ${_arg_right_mask} ${tmpdir}/right.unmasked ${tmpdir}/right.final
-else
-  cp -s ${tmpdir}/right.unmasked ${tmpdir}/right.final
-fi
-
 # Extract colourmap option into an array
-
 IFS=', ' read -r -a _arg_colourmap <<< "${_arg_colourmap}"
 
 if [[  ${#_arg_colourmap[@]} == 2 ]]; then
-  # Extract the threshold levels for left from option
-  threshold_low=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 1)
-  threshold_high=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
-
-  if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left.final | sort -g | head -1 || true)
-  fi
-
-  if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left.final | sort -g | tail -1 || true)
-  fi
 
   if [[ -s ${_arg_colourmap[0]} ]]; then
-    colourmap="user ${_arg_colourmap[0]}"
+    colourmap_neg="user ${_arg_colourmap[0]}"
   else
-    colourmap="${_arg_colourmap[0]}"
+    colourmap_neg="${_arg_colourmap[0]}"
   fi
-
-  colour_object ${_arg_left_obj} ${tmpdir}/left.final ${tmpdir}/left_negative.obj ${colourmap} -${threshold_low} -${threshold_high} white
 
   if [[ -s ${_arg_colourmap[1]} ]]; then
-    colourmap="user ${_arg_colourmap[1]}"
+    colourmap_pos="user ${_arg_colourmap[1]}"
   else
-    colourmap="${_arg_colourmap[1]}"
+    colourmap_pos="${_arg_colourmap[1]}"
   fi
-  colour_object ${tmpdir}/left_negative.obj ${tmpdir}/left.final ${tmpdir}/left_final.obj ${colourmap} ${threshold_low} ${threshold_high} transparent transparent
 
   # Extract the threshold levels for left from option
-  threshold_low=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 1)
-  threshold_high=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
+  threshold_low_left=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 1)
+  threshold_high_left=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
 
-  if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right.final | sort -g | head -1 || true)
+  if [[ ${threshold_low_left} == "MIN" ]]; then
+    threshold_low_left=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left | sort -g | head -1 || true)
   fi
 
-  if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right.final | sort -g | tail -1 || true)
+  if [[ ${threshold_high_left} == "MAX" ]]; then
+    threshold_high_left=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/left | sort -g | tail -1 || true)
   fi
 
-  if [[ -s ${_arg_colourmap[0]} ]]; then
-    colourmap="user ${_arg_colourmap[0]}"
-  else
-    colourmap="${_arg_colourmap[0]}"
+  colour_object ${_arg_left_obj} ${tmpdir}/left ${tmpdir}/left_negative.obj ${colourmap_neg} -${threshold_low_left} -${threshold_high_left} white
+  colour_object ${tmpdir}/left_negative.obj ${tmpdir}/left ${tmpdir}/left_unmasked.obj ${colourmap_pos} ${threshold_low_left} ${threshold_high_left} transparent
+
+  # Extract the threshold levels for left from option
+  threshold_low_right=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 1)
+  threshold_high_right=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 2)
+
+  if [[ ${threshold_low_right} == "MIN" ]]; then
+    threshold_low_right=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right | sort -g | head -1 || true)
   fi
 
-  colour_object ${_arg_right_obj} ${tmpdir}/right.final ${tmpdir}/right_negative.obj ${colourmap} -${threshold_low} -${threshold_high} white
-
-  if [[ -s ${_arg_colourmap[1]} ]]; then
-    colourmap="user ${_arg_colourmap[1]}"
-  else
-    colourmap="${_arg_colourmap[1]}"
+  if [[ ${threshold_high_right} == "MAX" ]]; then
+    threshold_high_right=$(awk 'function abs(x) { return ( (x < 0) ? -x : x ) } { print abs($0) }' ${tmpdir}/right | sort -g | tail -1 || true)
   fi
-  colour_object ${tmpdir}/right_negative.obj ${tmpdir}/right.final ${tmpdir}/right_final.obj ${colourmap} ${threshold_low} ${threshold_high} transparent transparent
+
+  colour_object ${_arg_right_obj} ${tmpdir}/right ${tmpdir}/right_negative.obj ${colourmap_neg} -${threshold_low_right} -${threshold_high_right} white
+  colour_object ${tmpdir}/right_negative.obj ${tmpdir}/right ${tmpdir}/right_unmasked.obj ${colourmap_pos} ${threshold_low_right} ${threshold_high_right} transparent
 
 else
 
@@ -632,32 +605,44 @@ else
   fi
 
   # Extract the threshold levels for left from option
-  threshold_low=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 1)
-  threshold_high=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
+  threshold_low_left=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 1)
+  threshold_high_left=$(echo ${_arg_left_thresholds[@]} | cut -d, -f 2)
 
-  if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(sort -g ${tmpdir}/left.final | head -1 || true)
+  if [[ ${threshold_low_left} == "MIN" ]]; then
+    threshold_low_left=$(sort -g ${tmpdir}/left | head -1 || true)
   fi
 
-  if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(sort -g ${tmpdir}/left.final | tail -1 || true)
+  if [[ ${threshold_high_left} == "MAX" ]]; then
+    threshold_high_left=$(sort -g ${tmpdir}/left | tail -1 || true)
   fi
 
-  colour_object ${_arg_left_obj} ${tmpdir}/left.final ${tmpdir}/left_final.obj ${colourmap} ${threshold_low} ${threshold_high}
+  colour_object ${_arg_left_obj} ${tmpdir}/left ${tmpdir}/left_unmasked.obj ${colourmap} ${threshold_low_left} ${threshold_high_left} white
 
   # Extract the threshold levels for right from option
-  threshold_low=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 1)
-  threshold_high=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 2)
+  threshold_low_right=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 1)
+  threshold_high_right=$(echo ${_arg_right_thresholds[@]} | cut -d, -f 2)
 
-  if [[ ${threshold_low} == "MIN" ]]; then
-    threshold_low=$(sort -g ${tmpdir}/right.final | head -1 || true)
+  if [[ ${threshold_low_right} == "MIN" ]]; then
+    threshold_low_right=$(sort -g ${tmpdir}/right | head -1 || true)
   fi
 
-  if [[ ${threshold_high} == "MAX" ]]; then
-    threshold_high=$(sort -g ${tmpdir}/right.final | tail -1 || true)
+  if [[ ${threshold_high_right} == "MAX" ]]; then
+    threshold_high_right=$(sort -g ${tmpdir}/right | tail -1 || true)
   fi
 
-  colour_object ${_arg_right_obj} ${tmpdir}/right.final ${tmpdir}/right_final.obj ${colourmap} ${threshold_low} ${threshold_high}
+  colour_object ${_arg_right_obj} ${tmpdir}/right ${tmpdir}/right_unmasked.obj ${colourmap} ${threshold_low_right} ${threshold_high_right} white
+fi
+
+if [[ -s ${_arg_left_mask} ]]; then
+  colour_object ${tmpdir}/left_unmasked.obj ${_arg_left_mask} ${tmpdir}/left_final.obj gray 0.5 0.5 white transparent
+else
+  cp -s ${tmpdir}/left_unmasked.obj ${tmpdir}/left_final.obj
+fi
+
+if [[ -s ${_arg_right_mask} ]]; then
+  colour_object ${tmpdir}/right_unmasked.obj ${_arg_right_mask} ${tmpdir}/right_final.obj gray 0.5 0.5 white transparent
+else
+  cp -s ${tmpdir}/right_unmasked.obj ${tmpdir}/right_final.obj
 fi
 
 # Generate views
