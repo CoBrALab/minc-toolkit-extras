@@ -18,12 +18,12 @@ N4BiasFieldCorrection --verbose -d 3 -s 4 -w ${tmpdir}/slab_mask.mnc -x ${tmpdir
   -i ${slab} \
   -o ${tmpdir}/slab_N4.mnc -r 0
 
-antsRegistration_affine.sh --fixed-mask ${wholebrain_mask} ${tmpdir}/slab_N4.mnc ${wholebrain} ${tmpdir}/towholebrain.xfm
+#antsRegistration_affine.sh --fixed-mask ${wholebrain_mask} ${tmpdir}/slab_N4.mnc ${wholebrain} ${tmpdir}/towholebrain.xfm
 
+antsRegistration_affine_SyN.sh --initial-transform none --close --skip-nonlinear --fixed-mask ${wholebrain_mask} ${tmpdir}/slab_N4.mnc ${wholebrain} ${tmpdir}/towholebrain_
 
-#antsApplyTransforms -d 3 -i ${wholebrain_mask} -r ${slab} -t [${tmpdir}/towholebrain.xfm,1] -n GenericLabel -o ${tmpdir}/slabmask.mnc --verbose
-mincresample -unsigned -byte -labels -keep -near -like ${slab} -transform ${tmpdir}/towholebrain.xfm ${wholebrain_mask} ${tmpdir}/slabmask.mnc
-
+#antsApplyTransforms -d 3 -i ${wholebrain_mask} -r ${slab} -t [ ${tmpdir}/towholebrain_0_GenericAffine.xfm,1 ] -n GenericLabel -o ${tmpdir}/slabmask.mnc --verbose
+mincresample -unsigned -byte -labels -keep -near -like ${slab} -transform ${tmpdir}/towholebrain_0_GenericAffine.xfm ${wholebrain_mask} ${tmpdir}/slabmask.mnc
 
 #Calculate bins for N4 with Freedman-Diaconis’s Rule
 n4weight=${tmpdir}/slabmask.mnc
