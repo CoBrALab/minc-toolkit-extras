@@ -681,9 +681,9 @@ if [[  ${#_arg_colourmap[@]} == 2 ]]; then
   convert ${tmpdir}/colourbar_pos.png ${tmpdir}/colourbar_neg.png -append ${tmpdir}/colourbar.png
 
   if [[ -n ${_arg_colourbar_labels} ]]; then
-    colourbar_label_low=(-gravity SouthWest -annotate +1400+290 "$(echo ${_arg_colourbar_labels} | cut -d, -f 1)")
-    colourbar_label_high=(-gravity SouthWest -annotate +1400+580 "$(echo ${_arg_colourbar_labels} | cut -d, -f 2)")
-    colourbar_label_high+=(-gravity SouthWest -annotate +1400+12 "$(echo ${_arg_colourbar_labels} | cut -d, -f 2)")
+    colourbar_label_low=(-gravity SouthWest -annotate +1400+290 "±$(echo ${_arg_colourbar_labels} | cut -d, -f 1)")
+    colourbar_label_high=(-gravity SouthWest -annotate +1400+580 "+$(echo ${_arg_colourbar_labels} | cut -d, -f 2)")
+    colourbar_label_high+=(-gravity SouthWest -annotate +1400+12 "−$(echo ${_arg_colourbar_labels} | cut -d, -f 2)")
   fi
 else
   if [[ -s ${_arg_colourmap[0]} ]]; then
