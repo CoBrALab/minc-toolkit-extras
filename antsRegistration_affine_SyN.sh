@@ -9,10 +9,11 @@
 # ARG_OPTIONAL_REPEATED([resampled-linear-output],[],[Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs])
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first],[com])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of linear transform],[affine])
+# ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration, pair with --moving in order],[])
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration, pair with --fixed in order],[])
-# ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
+# ARG_OPTIONAL_SINGLE([weights],[],[A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs],[1])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
 # ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[50])
 # ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
@@ -77,6 +78,7 @@ _arg_linear_type="affine"
 _arg_close="off"
 _arg_fixed=()
 _arg_moving=()
+_arg_weights="1"
 _arg_convergence="1e-6"
 _arg_final_iterations_linear="50"
 _arg_final_iterations_nonlinear="25"
@@ -98,7 +100,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -112,6 +114,7 @@ print_help()
   printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration, pair with --moving in order (empty by default)"
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration, pair with --fixed in order (empty by default)"
+  printf '\t%s\n' "--weights: A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs (default: '1')"
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
   printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '50')"
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
@@ -216,6 +219,14 @@ parse_commandline()
         ;;
       --moving=*)
         _arg_moving+=("${_key##--moving=}")
+        ;;
+      --weights)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_weights="$2"
+        shift
+        ;;
+      --weights=*)
+        _arg_weights="${_key##--weights=}"
         ;;
       --convergence)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -387,6 +398,7 @@ __invocation="$(printf %q "${__file}")$( (($#)) && printf ' %q' "$@" || true)"
 
 if [[ ${_arg_debug} == "on" ]]; then
   LOG_LEVEL=7
+  set -x
 else
   LOG_LEVEL=6
 fi
@@ -562,6 +574,15 @@ else
   _arg_float="--float 0"
 fi
 
+# Map weights into array, check length
+IFS=',' read -r -a _arg_weights <<<${_arg_weights}
+if (( ${#_arg_weights[@]} == 1 )) ||  (( ${#_arg_weights[@]} == ${#_arg_fixed[@]} + 1 )); then
+  true
+else
+  fatal "Incorrect number of weights provided"
+fi
+
+
 if [[ ${_arg_mask_extract} == "on" && ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
   info "Creating extracted versions of input files using masks"
   ImageMath 3 ${tmpdir}/fixed_extracted.h5 m ${_arg_fixedfile} ${_arg_fixed_mask}
@@ -638,9 +659,9 @@ if [[ ${_arg_close} == "on" ]]; then
   if [[ -n ${initial_transform} ]]; then
     warning "Registration parameter --close specified but --initial-transform is not \"none\" ensure this is what you want"
   fi
-  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 else
-  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)))
+  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 fi
 if [[ -n ${_arg_volgenmodel_iteration} ]]; then
   volgenmodel_max_iteration=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
@@ -714,10 +735,10 @@ fi
 if [[ ${_arg_fast} == "on" ]]; then
   _arg_syn_metric="Mattes[32]"
 fi
-syn_metric="--metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${fixedfile1},${movingfile1},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1,1 ]"
+syn_metric="--metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${fixedfile1},${movingfile1},${_arg_weights[0]},$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1,1 ]"
 i=0
 while (( i < ${#_arg_fixed[@]} )); do
-  syn_metric+=" --metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},1,$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1,1 ]"
+  syn_metric+=" --metric $(grep -o -E '^[a-zA-Z]+' <<< ${_arg_syn_metric})[ ${_arg_fixed[${i}]},${_arg_moving[${i}]},${_arg_weights[$((i+1))]},$(grep -o -E '[0-9]+' <<< ${_arg_syn_metric}),None,1,1 ]"
   ((++i))
 done
 
