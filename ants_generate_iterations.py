@@ -32,7 +32,7 @@ def check_positive(value):
 
 class SplitArgsComma(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, values.split(','))
+        setattr(namespace, self.dest, values.rstrip(',').split(','))
 
 parser.add_argument(
     '--min', help='minimum resolution of fixed file (mm)', type=float, required=True)
@@ -66,7 +66,7 @@ args = parser.parse_args()
 min_resolution = args.min
 max_size = args.max
 
-affinemetric = args.affine_metric.split(",")
+affinemetric = args.affine_metric.rstrip(',').split(",")
 affineweights= args.reg_pairs_weights
 
 if len(affinemetric) != args.reg_pairs:
