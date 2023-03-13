@@ -10,7 +10,7 @@
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first],[com])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of linear transform],[affine])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
-# ARG_OPTIONAL_BOOLEAN([close],[],[Images are starting off close, skip large scale pyramid search],[])
+# ARG_OPTIONAL_BOOLEAN([close],[],[Images are close in space and similarity, skip large scale pyramid search],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration, pair with --moving in order],[])
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration, pair with --fixed in order],[])
 # ARG_OPTIONAL_SINGLE([weights],[],[A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs],[1])
@@ -111,7 +111,7 @@ print_help()
   printf '\t%s\n' "--resampled-linear-output: Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs (empty by default)"
   printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first (default: 'com')"
   printf '\t%s\n' "--linear-type: Type of linear transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
-  printf '\t%s\n' "--close, --no-close: Images are starting off close, skip large scale pyramid search (off by default)"
+  printf '\t%s\n' "--close, --no-close: Images are close in space and similarity, skip large scale pyramid search (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration, pair with --moving in order (empty by default)"
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration, pair with --fixed in order (empty by default)"
   printf '\t%s\n' "--weights: A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs (default: '1')"
@@ -639,6 +639,14 @@ for initxfm in "${_arg_initial_transform[@]}"; do
   fi
 done
 
+
+if [[ ${_arg_close} == "on" ]]; then
+  _arg_close="--close"
+  if [[ -n ${initial_transform} ]]; then
+        warning "Registration parameter --close specified but --initial-transform is not \"none\" ensure this is what you want"
+  fi
+fi
+
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]]))")
 info "Mimimum voxel dimension ${fixed_minimum_resolution} mm"
 
@@ -655,14 +663,7 @@ fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for 
 info "Maximum image feature dimension ${fixed_maximum_resolution} mm"
 
 # Generate steps for registration
-if [[ ${_arg_close} == "on" ]]; then
-  if [[ -n ${initial_transform} ]]; then
-    warning "Registration parameter --close specified but --initial-transform is not \"none\" ensure this is what you want"
-  fi
-  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} --close ${_no_masks:+--no-masks}  --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
-else
-  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
-fi
+steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} ${_arg_close} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 if [[ -n ${_arg_volgenmodel_iteration} ]]; then
   volgenmodel_max_iteration=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
   if (( _arg_volgenmodel_iteration > volgenmodel_max_iteration)); then
@@ -670,7 +671,7 @@ if [[ -n ${_arg_volgenmodel_iteration} ]]; then
   fi
   steps_syn=$(ants_generate_iterations.py --output volgenmodel --volgen-iteration ${_arg_volgenmodel_iteration} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
 else
-  steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
+  steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} ${_arg_close})
 fi
 
 if [[ ${_arg_skip_linear} == "off" ]]; then

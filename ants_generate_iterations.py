@@ -203,9 +203,9 @@ elif args.output == 'modelbuild':
 
 elif args.output == 'generic':
     if args.close:
-      print("--convergence [ {},{},{} ]".format("x".join(iterations[-3:]), args.convergence, args.convergence_window), end=' \\\n')
-      print("--shrink-factors {}".format("x".join(shrinks[-3:])), end=' \\\n')
-      print("--smoothing-sigmas {}mm".format("x".join(blurs[-3:])), end=' ')
+      print("--convergence [ {},{},{} ]".format("x".join(iterations[-int(len(iterations)/2):]), args.convergence, args.convergence_window), end=' \\\n')
+      print("--shrink-factors {}".format("x".join(shrinks[-int(len(shrinks)/2):])), end=' \\\n')
+      print("--smoothing-sigmas {}mm".format("x".join(blurs[-int(len(blurs)/2):])), end=' ')
     else:
       print("--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
       print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
