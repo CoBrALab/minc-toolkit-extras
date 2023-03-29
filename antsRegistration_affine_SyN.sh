@@ -645,6 +645,8 @@ if [[ ${_arg_close} == "on" ]]; then
   if [[ -n ${initial_transform} ]]; then
         warning "Registration parameter --close specified but --initial-transform is not \"none\" ensure this is what you want"
   fi
+else
+  _arg_close=""
 fi
 
 fixed_minimum_resolution=$(python -c "print(min([abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]]))")
