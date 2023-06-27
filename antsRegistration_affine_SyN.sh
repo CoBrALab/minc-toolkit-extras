@@ -664,6 +664,8 @@ LabelGeometryMeasures 3 ${tmpdir}/otsu.h5 none ${tmpdir}/geometry.csv &> /dev/nu
 fixed_maximum_resolution=$(python -c "print(max([ a*b for a,b in zip( [ a-b for a,b in zip( [float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 14,16,18)\".split(\",\") ],[float(x) for x in \"$(tail -1 ${tmpdir}/geometry.csv | cut -d, -f 13,15,17)\".split(\",\") ])],[abs(x) for x in [float(x) for x in \"$(PrintHeader ${fixedfile1} 1)\".split(\"x\")]])]))")
 info "Maximum image feature dimension ${fixed_maximum_resolution} mm"
 
+rm -f ${tmpdir}/bgmask.h5 ${tmpdir}/otsu.h5 ${tmpdir}/geometry.csv
+
 # Generate steps for registration
 steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} ${_arg_close} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 if [[ -n ${_arg_volgenmodel_iteration} ]]; then
@@ -730,6 +732,7 @@ if [[ ${_arg_resampled_linear_output[0]-} && ${_arg_skip_nonlinear} == "off" ]];
           -o ${tmpdir}/resample.h5
       ThresholdImage 3 ${tmpdir}/resample.h5 "${tmpdir}/clampmask.h5" 1e-12 Inf 1 0
       ImageMath 3 "${_arg_resampled_linear_output[i]}" m ${tmpdir}/resample.h5 "${tmpdir}/clampmask.h5"
+      rm -f "${tmpdir}/clampmask.h5"
       ((++i))
     done
 fi
@@ -778,6 +781,7 @@ if [[ ${_arg_resampled_output[0]-} ]]; then
     -o ${tmpdir}/resample.h5
   ThresholdImage 3 ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5 1e-12 Inf 1 0
   ImageMath 3 "${_arg_resampled_output[0]}" m ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5
+  rm -f ${tmpdir}/resample.h5 ${tmpdir}/clampmask.h5
 
   i=1
   while (( i < ${#_arg_resampled_output[@]} )); do
