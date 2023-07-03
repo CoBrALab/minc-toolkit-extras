@@ -528,6 +528,8 @@ function run_smart {
 
 tmpdir=$(mktemp -d)
 
+ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS:-${THREADS_PER_COMMAND:-${QBATCH_THREADS_PER_COMMAND:=$(nproc)}}}
+
 #Setup exit trap for cleanup, don't do if debug
 function finish() {
     if [[ ${_arg_debug} == "off" ]]; then
