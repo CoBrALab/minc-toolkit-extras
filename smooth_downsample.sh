@@ -11,8 +11,8 @@ fi
 
 tmpdir=$(mktemp -d)
 
-isostep=$1
-input=$2
+input=$1
+isostep=$2
 output=$3
 
 inputres=$(python -c "print('\n'.join([str(abs(x)) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
@@ -26,7 +26,10 @@ for dim in ${inputres}; do
   fi
 done
 
-SmoothImage 3 ${input} "${blurs%?}" ${tmpdir}/smoothed.nii.gz 1 0
-ResampleImage 3 ${tmpdir}/smoothed.nii.gz ${output} ${isostep}x${isostep}x${isostep} 0 4
+SmoothImage 3 ${input} "${blurs%?}" ${tmpdir}/smoothed.h5 1 0
+ResampleImage 3 ${tmpdir}/smoothed.h5 ${tmpdir}/downsampled.h5 ${isostep}x${isostep}x${isostep} 0 4
+
+ThresholdImage 3 ${tmpdir}/downsampled.h5 ${tmpdir}/mask.h5 0 Inf 1 0
+ImageMath 3 ${output} m ${tmpdir}/downsampled.h5 ${tmpdir}/mask.h5
 
 rm -rf ${tmpdir}
