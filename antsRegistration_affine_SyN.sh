@@ -29,6 +29,7 @@
 # ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
 # ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
+# ARG_OPTIONAL_SINGLE([winsorize-image-intensities],[],[Winsorize data based on specified quantiles, comma separated lower,upper],[])
 # ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
 # ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
 # ARG_OPTIONAL_BOOLEAN([fast],[],[Run fast SyN registration, overrides syn-metric above with Mattes[32]])
@@ -100,6 +101,7 @@ _arg_volgenmodel_iteration=
 _arg_mask_extract="off"
 _arg_keep_mask_after_extract="off"
 _arg_histogram_matching="off"
+_arg_winsorize_image_intensities=
 _arg_skip_linear="off"
 _arg_skip_nonlinear="off"
 _arg_fast="off"
@@ -112,7 +114,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -142,6 +144,7 @@ print_help()
   printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
   printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
+  printf '\t%s\n' "--winsorize-image-intensities: Winsorize data based on specified quantiles, comma separated lower,upper (no default)"
   printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
   printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
   printf '\t%s\n' "--fast, --no-fast: Run fast SyN registration, overrides syn-metric above with Mattes[32] (off by default)"
@@ -353,6 +356,14 @@ parse_commandline()
       --no-histogram-matching|--histogram-matching)
         _arg_histogram_matching="on"
         test "${1:0:5}" = "--no-" && _arg_histogram_matching="off"
+        ;;
+      --winsorize-image-intensities)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_winsorize_image_intensities="$2"
+        shift
+        ;;
+      --winsorize-image-intensities=*)
+        _arg_winsorize_image_intensities="${_key##--winsorize-image-intensities=}"
         ;;
       --no-skip-linear|--skip-linear)
         _arg_skip_linear="on"
@@ -642,6 +653,11 @@ else
   _arg_float="--float 0"
 fi
 
+# Winzorise
+if [[ -n ${_arg_winsorize_image_intensities} ]]; then
+  _arg_winsorize_image_intensities="--winsorize-image-intensities [ ${_arg_winsorize_image_intensities} ]"
+fi
+
 # Map weights into array, check length
 IFS=',' read -r -a _arg_weights <<<${_arg_weights}
 if (( ${#_arg_weights[@]} == 1 )) ||  (( ${#_arg_weights[@]} == ${#_arg_fixed[@]} + 1 )); then
@@ -758,6 +774,7 @@ if [[ ${_arg_skip_linear} == "off" ]]; then
   run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
     --output [ ${tmpdir}/$(basename ${_arg_outputbasename}) ] \
     --use-histogram-matching ${_arg_histogram_matching} \
+    ${_arg_winsorize_image_intensities} \
     ${initial_transform} \
     $(eval echo ${steps_linear})"
   debug "Linear registration command"
@@ -828,6 +845,7 @@ if [[ ${_arg_skip_nonlinear} == "off" ]]; then
   run_command="antsRegistration --dimensionality 3 ${_arg_verbose} ${minc_mode} ${_arg_float} \
     --output [ ${tmpdir}/$(basename ${_arg_outputbasename}) ] \
     --use-histogram-matching ${_arg_histogram_matching} \
+    ${_arg_winsorize_image_intensities} \
     ${second_stage_initial} \
     --transform SyN[ ${_arg_syn_control} ] \
     ${syn_metric} \
