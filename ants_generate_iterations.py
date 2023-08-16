@@ -12,6 +12,7 @@ from __future__ import division, print_function
 import argparse
 import math
 import sys
+import re
 
 
 parser = argparse.ArgumentParser(
@@ -38,7 +39,7 @@ parser.add_argument(
 parser.add_argument(
     '--output', help='type of output to generate', default='generic',
       choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine',
-                'lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity','volgenmodel'])
+                'lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity','volgenmodel','affine-plain'])
 parser.add_argument('--volgen-iteration', help='for volgenmodel mode, control which iteration is output', default=0, type=int)
 parser.add_argument('--step-size', help='step size for fwhm scale space, default 1/2 of voxel size', type=float)
 parser.add_argument(
@@ -52,6 +53,11 @@ parser.add_argument(
 parser.add_argument('--reg-pairs', help='number of image pairs for affine output', default=1, type=check_positive)
 parser.add_argument('--reg-pairs-weights', help='either a single number for all weights, or a comma separated list of weights equal to reg_pairs', default=['1'], action=SplitArgsComma)
 parser.add_argument('--no-masks', help='for linear registration outputs skip repeat stages with masks', action='store_true')
+
+parser.add_argument('--override-shrink-factors', help='override calculation of optimal image pyramid with specified settings')
+parser.add_argument('--override-smoothing-sigmas', help='override calculation of optimal image pyramid with specified settings')
+parser.add_argument('--override-convergence', help='override calculation of optimal image pyramid with specified settings')
+
 
 args = parser.parse_args()
 
@@ -112,6 +118,21 @@ sigmas = [ str(x) for x in sigmas ]
 shrinks = [ str(int(x)) for x in shrinks ]
 iterations = [ str(x) for x in iterations ]
 
+suffix = "mm"
+
+if args.override_shrink_factors and args.override_smoothing_sigmas and args.override_convergence:
+   if re.search("mm", args.override_smoothing_sigmas):
+      suffix="mm"
+      sigmas = args.override_smoothing_sigmas.strip("mm").split("x")
+   elif re.search("vox", args.override_smoothing_sigmas):
+      suffix="vox"
+      sigmas = args.override_smoothing_sigmas.strip("vox").split("x")
+   else:
+      sigmas = args.override_smoothing_sigmas.split("x")
+      suffix = ""
+   shrinks = args.override_shrink_factors.split("x")
+   iterations = args.override_convergence.split("x")
+
 # Setup transforms
 if args.output in ["multilevel-halving", "affine", "lsq12","exhaustive-affine"]:
   transforms = ["--transform Translation[ ",
@@ -128,6 +149,10 @@ elif args.output in ["lsq6","rigid"]:
                 "--transform Rigid[ ",
                 "--transform Rigid[ ",
                 "--transform Rigid[ "]
+elif args.output in ['affine-plain']:
+  transforms = ["--transform Rigid[ ",
+                "--transform Similarity[ ",
+                "--transform Affine[ "]
 if not args.close:
   gradient_steps = [ 0.5, 0.33437015, 0.2236068, 0.1 ]
   gradient_steps_repeat = [ 0.5, 0.33437015, 0.14953488, 0.1 ]
@@ -146,7 +171,7 @@ repeatmask = [ False,
                "--masks [ ${fixedmask},${movingmask} ]",
                False ]
 
-if args.output == 'exhaustive-affine':
+if args.output == 'exhaustive-affine' or args.output == 'affine-plain':
     for i, transform in enumerate(transforms):
             if i == len(transforms) - 1:
               print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
@@ -155,9 +180,9 @@ if args.output == 'exhaustive-affine':
               print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
               print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
               if args.no_masks:
-                print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' ')
+                print("\t--smoothing-sigmas {}{}".format("x".join(sigmas),suffix), end=' ')
               else:
-                print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' \\\n')
+                print("\t--smoothing-sigmas {}{}".format("x".join(sigmas),suffix), end=' \\\n')
                 print("\t" + masks[i], end=' ')
             else:
               print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
@@ -165,7 +190,7 @@ if args.output == 'exhaustive-affine':
                   print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
               print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
               print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-              print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' \\\n')
+              print("\t--smoothing-sigmas {}{}".format("x".join(sigmas),suffix), end=' \\\n')
               if not args.no_masks:
                 print("\t" + masks[i], end=' \\\n')
                 if repeatmask[i]:
@@ -174,28 +199,28 @@ if args.output == 'exhaustive-affine':
                     print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
                   print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
                   print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-                  print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' \\\n')
+                  print("\t--smoothing-sigmas {}{}".format("x".join(sigmas),suffix), end=' \\\n')
                   print("\t" + repeatmask[i], end=' \\\n')
 
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
     print("--reg-shrinks {}".format("x".join(shrinks)), end=' \\\n')
-    print("--reg-smoothing {}mm".format("x".join(sigmas)), end=' ')
+    print("--reg-smoothing {}{}".format("x".join(sigmas),suffix), end=' ')
 
 elif args.output == 'modelbuild':
     print("-q {}".format("x".join(iterations)), end=' \\\n')
     print("-f {}".format("x".join(shrinks)), end=' \\\n')
-    print("-s {}mm".format("x".join(sigmas)), end=' ')
+    print("-s {}{}".format("x".join(sigmas),suffix), end=' ')
 
 elif args.output == 'generic':
       print("--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
       print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-      print("--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' ')
+      print("--smoothing-sigmas {}".format("x".join(sigmas),suffix), end=' ')
 
 elif args.output == 'volgenmodel':
     print("--convergence [ {}x0,{},{} ]".format("x".join(iterations[0:min(args.volgen_iteration+1,len(iterations))]), args.convergence, args.convergence_window), end=' \\\n')
     print("--shrink-factors {}x1".format("x".join(shrinks[0:min(args.volgen_iteration+1,len(shrinks))])), end=' \\\n')
-    print("--smoothing-sigmas {}x0mm".format("x".join(sigmas[0:min(args.volgen_iteration+1,len(sigmas))])), end=' ')
+    print("--smoothing-sigmas {}x0".format("x".join(sigmas[0:min(args.volgen_iteration+1,len(sigmas))]),suffix), end=' ')
 
 else:
 
@@ -225,9 +250,9 @@ else:
         print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:]), args.convergence, args.convergence_window), end=' \\\n')
         print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:])), end=' \\\n')
         if args.no_masks:
-          print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:])), end=' ')
+          print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:]),suffix), end=' ')
         else:
-          print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:])), end=' \\\n')
+          print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:]),suffix), end=' \\\n')
           print("\t" + masks[i], end=' ')
       else:
         print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
@@ -235,7 +260,7 @@ else:
           print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
         print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
         print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-        print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:sliceend[i]])), end=' \\\n')
+        print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:sliceend[i]]),suffix), end=' \\\n')
         if not args.no_masks:
           print("\t" + masks[i], end=' \\\n')
           if repeatmask[i]:
@@ -244,5 +269,5 @@ else:
                 print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
             print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
             print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-            print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:sliceend[i]])), end=' \\\n')
+            print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:sliceend[i]]),suffix), end=' \\\n')
             print("\t" + repeatmask[i], end=' \\\n')
