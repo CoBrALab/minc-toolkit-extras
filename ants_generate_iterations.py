@@ -13,13 +13,6 @@ import argparse
 import math
 import sys
 
-def RepresentsInt(s):
-    try:
-        int(s)
-        return True
-    except ValueError:
-        return False
-
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -35,19 +28,19 @@ class SplitArgsComma(argparse.Action):
         setattr(namespace, self.dest, values.rstrip(',').split(','))
 
 parser.add_argument(
-    '--min', help='minimum resolution of fixed file (mm)', type=float, required=True)
+    '--min', help='minimum resolution of fixed image (mm)', type=float, required=True)
 parser.add_argument(
-    '--max', help='max size of fixed file (mm)', type=float, required=True)
+    '--max', help='maximum dimension of fixed image features (mm)', type=float, required=True)
 parser.add_argument(
-    '--start-scale', help='set starting scale (mm), default calculated from max size', type=float)
+    '--start-scale', help='set starting sigma blur scale (mm), default calculated from max size', type=float)
 parser.add_argument(
-    '--final-iterations', help='total number of iterations at lowest scale (50 for affine)', type=int, default=25)
+    '--final-iterations', help='total number of iterations at lowest scale', type=int, default=20)
 parser.add_argument(
     '--output', help='type of output to generate', default='generic',
       choices=['generic', 'affine', 'modelbuild', 'twolevel_dbm', 'multilevel-halving', 'exhaustive-affine',
                 'lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity','volgenmodel'])
 parser.add_argument('--volgen-iteration', help='for volgenmodel mode, control which iteration is output', default=0, type=int)
-parser.add_argument('--step-size', help='step mode for generation', default=1)
+parser.add_argument('--step-size', help='step size for fwhm scale space, default 1/2 of voxel size', type=float)
 parser.add_argument(
     '--convergence', help='set convergence for generated stages', default='1e-6')
 parser.add_argument(
@@ -81,50 +74,45 @@ if len(args.reg_pairs_weights) != args.reg_pairs:
   else:
     affineweights = affineweights * args.reg_pairs
 
-if RepresentsInt(args.step_size):
-    step_size = int(args.step_size)
-elif args.step_size == "power2":
-    step_size = args.step_size
+
+if (args.output in ['affine', 'multilevel-halving', 'exhaustive-affine','lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity']):
+  if args.step_size:
+     step_size = args.step_size
+  else:
+    step_size = min_resolution / 2
+  if args.start_scale:
+     starting_sigma = args.start_scale
+  else:
+    starting_sigma = max_size / 32
 else:
-    sys.exit("Unrecognized step size")
+  if args.step_size:
+     step_size = args.step_size
+  else:
+    step_size = min_resolution / 2
 
-# Make empty arrays
-shrinks = []
-blurs = []
-iterations = []
+  if args.start_scale:
+     starting_sigma = args.start_scale
+  else:
+    starting_sigma = max_size / 12.3125 / 4
 
-if (args.output in ['affine', 'multilevel-halving', 'exhaustive-affine','lsq6', 'lsq9', 'lsq12', 'rigid', 'similarity']) and args.final_iterations == 25:
-  args.final_iterations = 50
+if args.close:
+  starting_sigma = starting_sigma / 2
 
-# Converter
-fwhm_to_sigma = 2 * math.sqrt(2 * math.log(2))
+# Step down sigmas by step_size from starting_sigma to zero
+sigmas = [ x * step_size for x in list(range(int(round(starting_sigma/step_size)),-1,-1)) ]
 
-# Inital resolution scaling
-if args.start_scale:
-  start_shrink = args.start_scale / min_resolution
-else:
-  start_shrink = max_size / 28 / min_resolution * 2
+# Shrinks are 2x sigma, with a capped maximum shrink
+shrinks = [ round(max(min(max_size/min_resolution/32, 2*x/min_resolution),1)) for x in sigmas ]
 
-max_shrink = max_size / min_resolution / 32
+iterations = [ min(500,int(args.final_iterations * 3**(max(0,x - 1)))) for x in shrinks ]
 
-if isinstance(step_size, int):
-    for shrink_scale in range(int(round(start_shrink)), 0, -1 * step_size):
-        shrinks.append(
-            str(int(min(max_shrink , max(1.0, round(shrink_scale))))))
-        blurs.append(str(math.sqrt(((shrink_scale*min_resolution)**2.0 - min_resolution**2.0)/(2.0*math.sqrt(2*math.log(2.0)))**2)))
-        iterations.append(str(min(500, int(args.final_iterations * 3**(max(0,shrink_scale - 1))))))
-else:
-    blur_scale = start_shrink * 2 * min_resolution
-    shrink_scale = start_shrink
-    while (blur_scale > 0.5 * min_resolution):
-        shrinks.append(
-            str(int(min(max_size / 32 / min_resolution, max(1.0, round(shrink_scale))))))
-        blurs.append(str(blur_scale / fwhm_to_sigma))
-        iterations.append(str(min(500, int(args.final_iterations * 3**(max(0,shrink_scale-1))))))
-        blur_scale = blur_scale / 2
-        shrink_scale = shrink_scale / 2
 
-#Setup transforms
+# Convert to strings
+sigmas = [ str(x) for x in sigmas ]
+shrinks = [ str(int(x)) for x in shrinks ]
+iterations = [ str(x) for x in iterations ]
+
+# Setup transforms
 if args.output in ["multilevel-halving", "affine", "lsq12","exhaustive-affine"]:
   transforms = ["--transform Translation[ ",
                 "--transform Rigid[ ",
@@ -152,6 +140,7 @@ masks = ["--masks [ NOMASK,NOMASK ]",
          "--masks [ NOMASK,NOMASK ]",
          "--masks [ ${fixedmask},${movingmask} ]" ]
 
+# If defined, repeat a stage previously done with a mask
 repeatmask = [ False,
                False,
                "--masks [ ${fixedmask},${movingmask} ]",
@@ -159,9 +148,6 @@ repeatmask = [ False,
 
 if args.output == 'exhaustive-affine':
     for i, transform in enumerate(transforms):
-        if args.close and i < 2:
-            pass
-        else:
             if i == len(transforms) - 1:
               print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
               for j in range(1, args.reg_pairs+1):
@@ -169,9 +155,9 @@ if args.output == 'exhaustive-affine':
               print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
               print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
               if args.no_masks:
-                print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
+                print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' ')
               else:
-                print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+                print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' \\\n')
                 print("\t" + masks[i], end=' ')
             else:
               print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
@@ -179,7 +165,7 @@ if args.output == 'exhaustive-affine':
                   print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
               print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
               print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-              print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+              print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' \\\n')
               if not args.no_masks:
                 print("\t" + masks[i], end=' \\\n')
                 if repeatmask[i]:
@@ -188,73 +174,75 @@ if args.output == 'exhaustive-affine':
                     print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
                   print("\t--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
                   print("\t--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-                  print("\t--smoothing-sigmas {}mm".format("x".join(blurs)), end=' \\\n')
+                  print("\t--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' \\\n')
                   print("\t" + repeatmask[i], end=' \\\n')
 
 elif args.output == 'twolevel_dbm':
     print("--reg-iterations {}".format("x".join(iterations)), end=' \\\n')
     print("--reg-shrinks {}".format("x".join(shrinks)), end=' \\\n')
-    print("--reg-smoothing {}mm".format("x".join(blurs)), end=' ')
+    print("--reg-smoothing {}mm".format("x".join(sigmas)), end=' ')
 
 elif args.output == 'modelbuild':
     print("-q {}".format("x".join(iterations)), end=' \\\n')
     print("-f {}".format("x".join(shrinks)), end=' \\\n')
-    print("-s {}mm".format("x".join(blurs)), end=' ')
+    print("-s {}mm".format("x".join(sigmas)), end=' ')
 
 elif args.output == 'generic':
-    if args.close:
-      print("--convergence [ {},{},{} ]".format("x".join(iterations[-int(len(iterations)/2):]), args.convergence, args.convergence_window), end=' \\\n')
-      print("--shrink-factors {}".format("x".join(shrinks[-int(len(shrinks)/2):])), end=' \\\n')
-      print("--smoothing-sigmas {}mm".format("x".join(blurs[-int(len(blurs)/2):])), end=' ')
-    else:
       print("--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
       print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-      print("--smoothing-sigmas {}mm".format("x".join(blurs)), end=' ')
+      print("--smoothing-sigmas {}mm".format("x".join(sigmas)), end=' ')
 
 elif args.output == 'volgenmodel':
     print("--convergence [ {}x0,{},{} ]".format("x".join(iterations[0:min(args.volgen_iteration+1,len(iterations))]), args.convergence, args.convergence_window), end=' \\\n')
     print("--shrink-factors {}x1".format("x".join(shrinks[0:min(args.volgen_iteration+1,len(shrinks))])), end=' \\\n')
-    print("--smoothing-sigmas {}x0mm".format("x".join(blurs[0:min(args.volgen_iteration+1,len(blurs))])), end=' ')
+    print("--smoothing-sigmas {}x0mm".format("x".join(sigmas[0:min(args.volgen_iteration+1,len(sigmas))])), end=' ')
 
 else:
+
     slicestart = [ 0,
-                   int(round(0.25*len(blurs))),
-                   int(round(0.50*len(blurs))),
-                   int(round(0.75*len(blurs)))]
-    sliceend = [ int(round(0.50*len(blurs))),
-                   int(round(0.75*len(blurs))),
-                   int(round(0.95*len(blurs))),
+                   int(round(0.25*len(sigmas))),
+                   int(round(0.50*len(sigmas))),
+                   int(round(0.75*len(sigmas)))]
+
+    sliceend = [   int(round(0.5*len(sigmas))),
+                   int(round(0.75*len(sigmas))),
+                   -2,
                    -1]
 
+    if args.close:
+      transforms = transforms[2:]
+      slicestart = slicestart[0:3]
+      sliceend = sliceend[1:]
+      masks = masks[2:]
+      repeatmask = repeatmask[2:]
+
+
     for i, transform in enumerate(transforms):
-        if args.close and i < 2:
-            pass
+      if i == len(transforms) - 1:
+        print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
+        for j in range(1, args.reg_pairs+1):
+          print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},64,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
+        print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:]), args.convergence, args.convergence_window), end=' \\\n')
+        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:])), end=' \\\n')
+        if args.no_masks:
+          print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:])), end=' ')
         else:
-          if i == len(transforms) - 1:
-            print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
+          print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:])), end=' \\\n')
+          print("\t" + masks[i], end=' ')
+      else:
+        print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
+        for j in range(1, args.reg_pairs+1):
+          print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
+        print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
+        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
+        print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:sliceend[i]])), end=' \\\n')
+        if not args.no_masks:
+          print("\t" + masks[i], end=' \\\n')
+          if repeatmask[i]:
+            print(transform + str(gradient_steps_repeat[i]) + " ]", end=' \\\n')
             for j in range(1, args.reg_pairs+1):
-              print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},64,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
-            print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:]), args.convergence, args.convergence_window), end=' \\\n')
-            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:])), end=' \\\n')
-            if args.no_masks:
-              print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:])), end=' ')
-            else:
-              print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:])), end=' \\\n')
-              print("\t" + masks[i], end=' ')
-          else:
-            print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
-            for j in range(1, args.reg_pairs+1):
-              print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
+                print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
             print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
             print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-            print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
-            if not args.no_masks:
-              print("\t" + masks[i], end=' \\\n')
-              if repeatmask[i]:
-                print(transform + str(gradient_steps_repeat[i]) + " ]", end=' \\\n')
-                for j in range(1, args.reg_pairs+1):
-                    print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
-                print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
-                print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-                print("\t--smoothing-sigmas {}mm".format("x".join(blurs[slicestart[i]:sliceend[i]])), end=' \\\n')
-                print("\t" + repeatmask[i], end=' \\\n')
+            print("\t--smoothing-sigmas {}mm".format("x".join(sigmas[slicestart[i]:sliceend[i]])), end=' \\\n')
+            print("\t" + repeatmask[i], end=' \\\n')

@@ -15,7 +15,7 @@
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration, pair with --fixed in order],[])
 # ARG_OPTIONAL_SINGLE([weights],[],[A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs],[1])
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
-# ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[50])
+# ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[20])
 # ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
 # ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[4]])
@@ -83,7 +83,7 @@ _arg_fixed=()
 _arg_moving=()
 _arg_weights="1"
 _arg_convergence="1e-6"
-_arg_final_iterations_linear="50"
+_arg_final_iterations_linear="20"
 _arg_final_iterations_nonlinear="25"
 _arg_syn_control="0.1,3,0"
 _arg_syn_metric="CC[4]"
@@ -122,7 +122,7 @@ print_help()
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration, pair with --fixed in order (empty by default)"
   printf '\t%s\n' "--weights: A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs (default: '1')"
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
-  printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '50')"
+  printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '20')"
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
   printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[4]')"
