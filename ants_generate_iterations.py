@@ -215,7 +215,7 @@ elif args.output == 'modelbuild':
 elif args.output == 'generic':
       print("--convergence [ {},{},{} ]".format("x".join(iterations), args.convergence, args.convergence_window), end=' \\\n')
       print("--shrink-factors {}".format("x".join(shrinks)), end=' \\\n')
-      print("--smoothing-sigmas {}".format("x".join(sigmas),suffix), end=' ')
+      print("--smoothing-sigmas {}{}".format("x".join(sigmas),suffix), end=' ')
 
 elif args.output == 'volgenmodel':
     print("--convergence [ {}x0,{},{} ]".format("x".join(iterations[0:min(args.volgen_iteration+1,len(iterations))]), args.convergence, args.convergence_window), end=' \\\n')
