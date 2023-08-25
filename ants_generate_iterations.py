@@ -49,6 +49,8 @@ parser.add_argument(
 parser.add_argument(
     '--close', help='images are already close, skip large scales of pyramid and translation and rigid steps for affine', action='store_true')
 parser.add_argument(
+    '--rough', help='skip full-resolution iterations for a "rough" alignment', action='store_true')
+parser.add_argument(
     '--affine-metric', help='which metric to use for affine stages, use comma separated list for multiple image pairs (MI, Mattes, GC, MeanSquares, Demons)', default='Mattes')
 parser.add_argument('--reg-pairs', help='number of image pairs for affine output', default=1, type=check_positive)
 parser.add_argument('--reg-pairs-weights', help='either a single number for all weights, or a comma separated list of weights equal to reg_pairs', default=['1'], action=SplitArgsComma)
@@ -112,6 +114,14 @@ shrinks = [ round(max(min(max_size/min_resolution/32, 2*x/min_resolution),1)) fo
 
 iterations = [ min(500,int(args.final_iterations * 3**(max(0,x - 1)))) for x in shrinks ]
 
+if args.rough:
+  to_remove = [i for i in range(len(shrinks)) if shrinks[i]==1]
+  sigmas = [i for j, i in enumerate(sigmas) if j not in to_remove]
+  shrinks = [i for j, i in enumerate(shrinks) if j not in to_remove]
+  iterations = [i for j, i in enumerate(iterations) if j not in to_remove]
+  sigmas.append('0')
+  shrinks.append('1')
+  iterations.append('0')
 
 # Convert to strings
 sigmas = [ str(x) for x in sigmas ]

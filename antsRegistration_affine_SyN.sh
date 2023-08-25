@@ -7,10 +7,11 @@
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
 # ARG_OPTIONAL_REPEATED([resampled-output],[o],[Output resampled file(s), repeat for resampling multispectral outputs])
 # ARG_OPTIONAL_REPEATED([resampled-linear-output],[],[Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs])
-# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first],[com])
+# ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com-masks', 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first],[com-masks])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of linear transform],[affine])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are close in space and similarity, skip large scale pyramid search],[])
+# ARG_OPTIONAL_BOOLEAN([rough],[],[Skip fine-resolution alignment, only perform rough parts of scale pyramid],[])
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration, pair with --moving in order],[])
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration, pair with --fixed in order],[])
 # ARG_OPTIONAL_SINGLE([weights],[],[A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs],[1])
@@ -80,9 +81,10 @@ _arg_moving_mask="NOMASK"
 _arg_fixed_mask="NOMASK"
 _arg_resampled_output=()
 _arg_resampled_linear_output=()
-_arg_initial_transform="com"
+_arg_initial_transform="com-masks"
 _arg_linear_type="affine"
 _arg_close="off"
+_arg_rough="off"
 _arg_fixed=()
 _arg_moving=()
 _arg_weights="1"
@@ -114,7 +116,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--(no-)rough] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -123,9 +125,10 @@ print_help()
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
   printf '\t%s\n' "-o, --resampled-output: Output resampled file(s), repeat for resampling multispectral outputs (empty by default)"
   printf '\t%s\n' "--resampled-linear-output: Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs (empty by default)"
-  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first (default: 'com')"
+  printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com-masks', 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first (default: 'com-masks')"
   printf '\t%s\n' "--linear-type: Type of linear transform. Can be one of: 'rigid', 'lsq6', 'similarity', 'lsq9', 'affine', 'lsq12' and 'exhaustive-affine' (default: 'affine')"
   printf '\t%s\n' "--close, --no-close: Images are close in space and similarity, skip large scale pyramid search (off by default)"
+  printf '\t%s\n' "--rough, --no-rough: Skip fine-resolution alignment, only perform rough parts of scale pyramid (off by default)"
   printf '\t%s\n' "--fixed: Additional fixed images for multispectral registration, pair with --moving in order (empty by default)"
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration, pair with --fixed in order (empty by default)"
   printf '\t%s\n' "--weights: A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs (default: '1')"
@@ -224,6 +227,10 @@ parse_commandline()
       --no-close|--close)
         _arg_close="on"
         test "${1:0:5}" = "--no-" && _arg_close="off"
+        ;;
+      --no-rough|--rough)
+        _arg_rough="on"
+        test "${1:0:5}" = "--no-" && _arg_rough="off"
         ;;
       --fixed)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -703,9 +710,17 @@ fi
 IFS=', ' read -r -a _arg_initial_transform <<< "${_arg_initial_transform}"
 initial_transform=""
 for initxfm in "${_arg_initial_transform[@]}"; do
-  if [[ ${initxfm} == "com" ]]; then
-    info "Adding Center-of-Mass between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
-    initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ] "
+  if [[ ${initxfm} == "com-masks" ]]; then
+    if [[  ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
+      info "Adding Center-of-Mass between $(basename ${_arg_fixed_mask}) and $(basename ${_arg_moving_mask}) for registration initialization"
+      initial_transform+="--initial-moving-transform [ ${_arg_fixed_mask},${_arg_moving_mask},1 ] "
+    else
+      info "Fixed and Moving Masks Not Provided, Falling back to Adding Center-of-Mass between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
+      initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ] "
+    fi
+  elif [[ ${initxfm} == "com" ]]; then
+      info "Adding Center-of-Mass between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
+      initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},1 ] "
   elif [[ ${initxfm} == "cov" ]]; then
     info "Adding Center-of-Volume between $(basename ${fixedfile1}) and $(basename ${movingfile1}) for registration initialization"
     initial_transform+="--initial-moving-transform [ ${fixedfile1},${movingfile1},0 ] "
@@ -723,6 +738,11 @@ for initxfm in "${_arg_initial_transform[@]}"; do
   fi
 done
 
+if [[ ${_arg_rough} == "on" ]]; then
+  _arg_rough="--rough"
+else
+  _arg_rough=""
+fi
 
 if [[ ${_arg_close} == "on" ]]; then
   _arg_close="--close"
@@ -751,19 +771,19 @@ info "Maximum image feature dimension ${fixed_maximum_resolution} mm"
 rm -f ${tmpdir}/bgmask.h5 ${tmpdir}/otsu.h5 ${tmpdir}/geometry.csv
 
 # Generate steps for registration
-steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} ${_arg_close} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
+steps_linear=$(ants_generate_iterations.py ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} ${_arg_close} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 if [[ -n ${_arg_volgenmodel_iteration} ]]; then
-  volgenmodel_max_iteration=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
+  volgenmodel_max_iteration=$(ants_generate_iterations.py ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
   if (( _arg_volgenmodel_iteration > volgenmodel_max_iteration)); then
     warning "--volgenmodel-iteration ${_arg_volgenmodel_iteration} is larger than maximum iteration level of ${volgenmodel_max_iteration} for ${fixedfile1}, defaulting to final level"
   fi
-  steps_syn=$(ants_generate_iterations.py --output volgenmodel --volgen-iteration ${_arg_volgenmodel_iteration} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
+  steps_syn=$(ants_generate_iterations.py ${_arg_rough} --output volgenmodel --volgen-iteration ${_arg_volgenmodel_iteration} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence})
 else
-  steps_syn=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} ${_arg_close})
+  steps_syn=$(ants_generate_iterations.py ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} ${_arg_close})
 fi
 
 if [[ -n ${_arg_linear_convergence} && -n ${_arg_linear_shrink_factors} && -n ${_arg_linear_smoothing_sigmas} ]]; then
-  steps_linear=$(ants_generate_iterations.py --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} ${_arg_close} --output affine-plain --override-smoothing-sigmas ${_arg_linear_smoothing_sigmas} --override-shrink-factors ${_arg_linear_shrink_factors} --override-convergence ${_arg_linear_convergence} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
+  steps_linear=$(ants_generate_iterations.py  ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} ${_arg_close} --output affine-plain --override-smoothing-sigmas ${_arg_linear_smoothing_sigmas} --override-shrink-factors ${_arg_linear_shrink_factors} --override-convergence ${_arg_linear_convergence} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 fi
 
 if [[ -n ${_arg_syn_convergence} && -n ${_arg_syn_shrink_factors} && -n ${_arg_syn_smoothing_sigmas} ]]; then
