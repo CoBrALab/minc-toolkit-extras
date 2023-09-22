@@ -667,7 +667,9 @@ fi
 
 # Map weights into array, check length
 IFS=',' read -r -a _arg_weights <<<${_arg_weights}
-if (( ${#_arg_weights[@]} == 1 )) ||  (( ${#_arg_weights[@]} == ${#_arg_fixed[@]} + 1 )); then
+if (( ${#_arg_weights[@]} == 1 )) &&  (( ${#_arg_fixed[@]} > 0 )); then
+  _arg_weights=($(for n in $(seq $(( ${#_arg_fixed[@]} + 1 )) ); do echo 1; done))
+elif (( ${#_arg_weights[@]} == ${#_arg_fixed[@]} + 1 )); then
   true
 else
   fatal "Incorrect number of weights provided"
