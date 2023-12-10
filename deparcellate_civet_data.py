@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import argparse
 import numpy as np
 import os
@@ -5,7 +7,7 @@ import sys
 
 
 
-def deparcellate_data(data, parcellation, output, labels=None):
+def deparcellate_data(data, parcellation, labels=None):
     # INPUT: Load in data and parcellation files (assuming .txt for now)
     data = np.genfromtxt(data)
     parcellation = np.genfromtxt(parcellation)
@@ -35,21 +37,24 @@ def deparcellate_data(data, parcellation, output, labels=None):
         to_fill = np.where(parcellation == label)
         vertexwise_data[to_fill] = parcel_value
 
-    np.savetxt(output, vertexwise_data)
+    return vertexwise_data
 
 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Maps region-averaged values to their corresponding surface vertices'
+        description='Generic function for mapping parcellated CIVET surface measures to their corresponding vertices'
     )
 
-    parser.add_argument('input', help='path to .txt file of region-averaged values', type=str)
-    parser.add_argument('parcellation', help='path to .txt file of labels for each vertex', type=str)
-    parser.add_argument('output', help='path to .txt file to store vertex-wise map of regional values', type=str)
-    parser.add_argument('--labels', help='optionally specifiy labels for each region in the input file, otherwise assumes regions are in ascending numeric order (according to values in the parcellation file)', default=None, type=str)
+    parser.add_argument('input', help='region-averaged data. Format: path to .txt file with one value for each region', type=str)
+    parser.add_argument('parcellation', help='parcellation scheme. Format: path to .txt file with one label for each vertex', type=str)
+    parser.add_argument('output', help='output file to store region-averaged values at their corresponding vertices. Format: path to .txt file', type=str)
+    parser.add_argument('--labels', help='optionally specify labels for each region in the input data. If not specified, assumes regions are in ascending numeric order, based on the unique values in parcellation. Format: path to .txt file with one label for each region', default=None, type=str)
 
     args = parser.parse_args()
 
-    deparcellate_data(data=args.input, parcellation=args.parcellation, output=args.output, labels=args.labels)
+    # Get vertex-wise data, save
+    vertexwise_data = deparcellate_data(data=args.input, parcellation=args.parcellation, labels=args.labels)
+    np.savetxt(args.output, vertexwise_data)
+    
