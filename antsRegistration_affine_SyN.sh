@@ -629,7 +629,7 @@ if [[ "${_arg_movingfile}" == *mnc && "${_arg_fixedfile}" == *mnc ]]; then
   minc_mode="--minc"
   output_linear_xfm="${_arg_outputbasename}0_GenericAffine.xfm"
 elif [[ ("${_arg_movingfile}" == *mnc && "${_arg_fixedfile}" != *mnc) || ("${_arg_movingfile}" != *mnc && "${_arg_fixedfile}" == *mnc)  ]]; then
-  fatal "Mixed MINC and non-MINC files detected as input, ITK MINC reader bug currently prevents mixing MINC with any other file type"
+  failure "Mixed MINC and non-MINC files detected as input, ITK MINC reader bug currently prevents mixing MINC with any other file type"
 else
   minc_mode=""
   output_linear_xfm="${_arg_outputbasename}0GenericAffine.mat"
@@ -672,7 +672,7 @@ if (( ${#_arg_weights[@]} == 1 )) &&  (( ${#_arg_fixed[@]} > 0 )); then
 elif (( ${#_arg_weights[@]} == ${#_arg_fixed[@]} + 1 )); then
   true
 else
-  fatal "Incorrect number of weights provided"
+  failure "Incorrect number of weights provided"
 fi
 
 
