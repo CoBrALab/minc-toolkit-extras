@@ -268,16 +268,16 @@ else:
         print(transform + str(gradient_steps[i]) + " ]", end=' \\\n')
         for j in range(1, args.reg_pairs+1):
           print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
-        print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
-        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-        print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:sliceend[i]]),suffix), end=' \\\n')
+        print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:max(-slicestart[i]+1,sliceend[i])]), args.convergence, args.convergence_window), end=' \\\n')
+        print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:max(-slicestart[i]+1,sliceend[i])])), end=' \\\n')
+        print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:max(-slicestart[i]+1,sliceend[i])]),suffix), end=' \\\n')
         if not args.no_masks:
           print("\t" + masks[i], end=' \\\n')
           if repeatmask[i]:
             print(transform + str(gradient_steps_repeat[i]) + " ]", end=' \\\n')
             for j in range(1, args.reg_pairs+1):
                 print("\t--metric {affinemetric}[ ${{fixedfile{j}}},${{movingfile{j}}},{affineweights},32,None,1,1 ]".format(j=j, affinemetric=affinemetric[j-1], affineweights=affineweights[j-1]), end=' \\\n')
-            print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:sliceend[i]]), args.convergence, args.convergence_window), end=' \\\n')
-            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:sliceend[i]])), end=' \\\n')
-            print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:sliceend[i]]),suffix), end=' \\\n')
+            print("\t--convergence [ {},{},{} ]".format("x".join(iterations[slicestart[i]:max(-slicestart[i]+1,sliceend[i])]), args.convergence, args.convergence_window), end=' \\\n')
+            print("\t--shrink-factors {}".format("x".join(shrinks[slicestart[i]:max(-slicestart[i]+1,sliceend[i])])), end=' \\\n')
+            print("\t--smoothing-sigmas {}{}".format("x".join(sigmas[slicestart[i]:max(-slicestart[i]+1,sliceend[i])]),suffix), end=' \\\n')
             print("\t" + repeatmask[i], end=' \\\n')
