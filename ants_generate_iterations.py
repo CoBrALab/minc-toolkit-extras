@@ -10,7 +10,6 @@
 from __future__ import division, print_function
 
 import argparse
-import math
 import sys
 import re
 
@@ -230,7 +229,7 @@ elif args.output == 'generic':
 elif args.output == 'volgenmodel':
     print("--convergence [ {}x0,{},{} ]".format("x".join(iterations[0:min(args.volgen_iteration+1,len(iterations))]), args.convergence, args.convergence_window), end=' \\\n')
     print("--shrink-factors {}x1".format("x".join(shrinks[0:min(args.volgen_iteration+1,len(shrinks))])), end=' \\\n')
-    print("--smoothing-sigmas {}x0".format("x".join(sigmas[0:min(args.volgen_iteration+1,len(sigmas))]),suffix), end=' ')
+    print("--smoothing-sigmas {}x0{}".format("x".join(sigmas[0:min(args.volgen_iteration+1,len(sigmas))]),suffix), end=' ')
 
 else:
 
