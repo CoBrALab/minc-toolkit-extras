@@ -18,11 +18,12 @@
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
 # ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[20])
 # ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
-# ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.1,3,0])
-# ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[4]])
+# ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.2,3,0])
+# ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[2]])
 # ARG_OPTIONAL_SINGLE([syn-shrink-factors],[],[Shrink factors for Non-linear (SyN) stage, provide to override automatic generation, must be provided with sigmas and convergence],[])
 # ARG_OPTIONAL_SINGLE([syn-smoothing-sigmas],[],[Smoothing sigmas for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and convergence],[])
 # ARG_OPTIONAL_SINGLE([syn-convergence],[],[Convergence levels for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and sigmas],[])
+# ARG_OPTIONAL_SINGLE([linear-metric],[],[Linear metric],[Mattes])
 # ARG_OPTIONAL_SINGLE([linear-shrink-factors],[],[Shrink factors for linear stage, provide to override automatic generation, must be provided with sigmas and convergence],[])
 # ARG_OPTIONAL_SINGLE([linear-smoothing-sigmas],[],[Smoothing sigmas for linear stage, provide to override automatic generation, must be provided with shrinks and convergence],[])
 # ARG_OPTIONAL_SINGLE([linear-convergence],[],[Convergence levels for linear stage, provide to override automatic generation, must be provided with shrinks and sigmas],[])
@@ -91,11 +92,12 @@ _arg_weights="1"
 _arg_convergence="1e-6"
 _arg_final_iterations_linear="20"
 _arg_final_iterations_nonlinear="25"
-_arg_syn_control="0.1,3,0"
-_arg_syn_metric="CC[4]"
+_arg_syn_control="0.2,3,0"
+_arg_syn_metric="CC[2]"
 _arg_syn_shrink_factors=
 _arg_syn_smoothing_sigmas=
 _arg_syn_convergence=
+_arg_linear_metric="Mattes"
 _arg_linear_shrink_factors=
 _arg_linear_smoothing_sigmas=
 _arg_linear_convergence=
@@ -116,7 +118,7 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--(no-)rough] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--(no-)rough] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-metric <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
@@ -135,11 +137,12 @@ print_help()
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
   printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '20')"
   printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
-  printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.1,3,0')"
-  printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[4]')"
+  printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.2,3,0')"
+  printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[2]')"
   printf '\t%s\n' "--syn-shrink-factors: Shrink factors for Non-linear (SyN) stage, provide to override automatic generation, must be provided with sigmas and convergence (no default)"
   printf '\t%s\n' "--syn-smoothing-sigmas: Smoothing sigmas for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and convergence (no default)"
   printf '\t%s\n' "--syn-convergence: Convergence levels for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and sigmas (no default)"
+  printf '\t%s\n' "--linear-metric: Linear metric (default: 'Mattes')"
   printf '\t%s\n' "--linear-shrink-factors: Shrink factors for linear stage, provide to override automatic generation, must be provided with sigmas and convergence (no default)"
   printf '\t%s\n' "--linear-smoothing-sigmas: Smoothing sigmas for linear stage, provide to override automatic generation, must be provided with shrinks and convergence (no default)"
   printf '\t%s\n' "--linear-convergence: Convergence levels for linear stage, provide to override automatic generation, must be provided with shrinks and sigmas (no default)"
@@ -319,6 +322,14 @@ parse_commandline()
         ;;
       --syn-convergence=*)
         _arg_syn_convergence="${_key##--syn-convergence=}"
+        ;;
+      --linear-metric)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_linear_metric="$2"
+        shift
+        ;;
+      --linear-metric=*)
+        _arg_linear_metric="${_key##--linear-metric=}"
         ;;
       --linear-shrink-factors)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -773,7 +784,7 @@ info "Maximum image feature dimension ${fixed_maximum_resolution} mm"
 rm -f ${tmpdir}/bgmask.h5 ${tmpdir}/otsu.h5 ${tmpdir}/geometry.csv
 
 # Generate steps for registration
-steps_linear=$(ants_generate_iterations.py ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} ${_arg_close} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
+steps_linear=$(ants_generate_iterations.py --affine-metric ${_arg_linear_metric} ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_linear} --convergence ${_arg_convergence} ${_arg_close} --output ${_arg_linear_type} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 if [[ -n ${_arg_volgenmodel_iteration} ]]; then
   volgenmodel_max_iteration=$(ants_generate_iterations.py ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --final-iterations ${_arg_final_iterations_nonlinear} --convergence ${_arg_convergence} | grep shrink | grep -o x | wc -l)
   if (( _arg_volgenmodel_iteration > volgenmodel_max_iteration)); then
@@ -785,7 +796,7 @@ else
 fi
 
 if [[ -n ${_arg_linear_convergence} && -n ${_arg_linear_shrink_factors} && -n ${_arg_linear_smoothing_sigmas} ]]; then
-  steps_linear=$(ants_generate_iterations.py  ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} ${_arg_close} --output affine-plain --override-smoothing-sigmas ${_arg_linear_smoothing_sigmas} --override-shrink-factors ${_arg_linear_shrink_factors} --override-convergence ${_arg_linear_convergence} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
+  steps_linear=$(ants_generate_iterations.py --affine-metric ${_arg_linear_metric} ${_arg_rough} --min ${fixed_minimum_resolution} --max ${fixed_maximum_resolution} --convergence ${_arg_convergence} ${_arg_close} --output affine-plain --override-smoothing-sigmas ${_arg_linear_smoothing_sigmas} --override-shrink-factors ${_arg_linear_shrink_factors} --override-convergence ${_arg_linear_convergence} ${_no_masks:+--no-masks} --reg-pairs $((${#_arg_fixed[@]} + 1)) --reg-pairs-weights $(printf '%s,' "${_arg_weights[@]}"))
 fi
 
 if [[ -n ${_arg_syn_convergence} && -n ${_arg_syn_shrink_factors} && -n ${_arg_syn_smoothing_sigmas} ]]; then
