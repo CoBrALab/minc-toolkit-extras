@@ -264,13 +264,13 @@ mincresample -clobber -tfm_input_sampling \
   ${tmpdir}/output.mnc
 
 mincresample -keep -near -label -transform ${tmpdir}/transform_to_input.xfm \
-  -like ${output} \
+  -like ${tmpdir}/output.mnc \
   -unsigned -byte \
   ${tmpdir}/mask.mnc \
   ${tmpdir}/output_mask.mnc
 
-if [[ ${output} == "*nii" || ${output} == "*nii.gz" ]]; then
-  if [[ ${output} == "*gz" ]]; then
+if [[ ${output} == *nii || ${output} == *nii.gz ]]; then
+  if [[ ${output} == *gz ]]; then
     mnc2nii ${tmpdir}/output.mnc ${tmpdir}/output.nii
     mnc2nii ${tmpdir}/output_mask.mnc ${tmpdir}/output_mask.nii
     pigz ${tmpdir}/output*.nii
