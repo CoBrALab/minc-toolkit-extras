@@ -3,48 +3,60 @@
 # ARG_POSITIONAL_SINGLE([movingfile],[The moving image])
 # ARG_POSITIONAL_SINGLE([fixedfile],[The fixed image])
 # ARG_POSITIONAL_SINGLE([outputbasename],[The basename for the output transforms])
+
 # ARG_OPTIONAL_SINGLE([moving-mask],[],[Mask for moving image],[NOMASK])
 # ARG_OPTIONAL_SINGLE([fixed-mask],[],[Mask for fixed image],[NOMASK])
+# ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
+# ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
+
 # ARG_OPTIONAL_REPEATED([resampled-output],[o],[Output resampled file(s), repeat for resampling multispectral outputs])
 # ARG_OPTIONAL_REPEATED([resampled-linear-output],[],[Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs])
+
 # ARG_OPTIONAL_SINGLE([initial-transform],[],[Initial moving transformation for registration. Can be one of: 'com-masks', 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first],[com-masks])
 # ARG_OPTIONAL_SINGLE([linear-type],[],[Type of linear transform],[affine])
 # ARG_TYPE_GROUP_SET([lineargroup],[LINEAR],[linear-type],[rigid,lsq6,similarity,lsq9,affine,lsq12,exhaustive-affine])
+
 # ARG_OPTIONAL_BOOLEAN([close],[],[Images are close in space and similarity, skip large scale pyramid search],[])
 # ARG_OPTIONAL_BOOLEAN([rough],[],[Skip fine-resolution alignment, only perform rough parts of scale pyramid],[])
+
 # ARG_OPTIONAL_REPEATED([fixed],[],[Additional fixed images for multispectral registration, pair with --moving in order],[])
 # ARG_OPTIONAL_REPEATED([moving],[],[Additional moving images for multispectral registration, pair with --fixed in order],[])
 # ARG_OPTIONAL_SINGLE([weights],[],[A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs],[1])
+
 # ARG_OPTIONAL_SINGLE([convergence],[],[Convergence stopping value for registration],[1e-6])
-# ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear],[20])
-# ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear],[25])
+
+# ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
+# ARG_OPTIONAL_SINGLE([linear-metric],[],[Linear metric],[Mattes])
+# ARG_OPTIONAL_SINGLE([linear-shrink-factors],[],[Shrink factors for linear stage, provide to override automatic generation, must be provided with sigmas and convergence],[])
+# ARG_OPTIONAL_SINGLE([linear-smoothing-sigmas],[],[Smoothing sigmas for linear stage, provide to override automatic generation, must be provided with shrinks and convergence],[])
+# ARG_OPTIONAL_SINGLE([linear-convergence],[],[Convergence levels for linear stage, provide to override automatic generation, must be provided with shrinks and sigmas],[])
+# ARG_OPTIONAL_SINGLE([final-iterations-linear],[],[Maximum iterations at finest scale for linear automatic generation],[20])
+
+# ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
 # ARG_OPTIONAL_SINGLE([syn-control],[],[Non-linear (SyN) gradient and regularization parameters, not checked for correctness],[0.2,3,0])
 # ARG_OPTIONAL_SINGLE([syn-metric],[],[Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations],[CC[2]])
 # ARG_OPTIONAL_SINGLE([syn-shrink-factors],[],[Shrink factors for Non-linear (SyN) stage, provide to override automatic generation, must be provided with sigmas and convergence],[])
 # ARG_OPTIONAL_SINGLE([syn-smoothing-sigmas],[],[Smoothing sigmas for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and convergence],[])
 # ARG_OPTIONAL_SINGLE([syn-convergence],[],[Convergence levels for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and sigmas],[])
-# ARG_OPTIONAL_SINGLE([linear-metric],[],[Linear metric],[Mattes])
-# ARG_OPTIONAL_SINGLE([linear-shrink-factors],[],[Shrink factors for linear stage, provide to override automatic generation, must be provided with sigmas and convergence],[])
-# ARG_OPTIONAL_SINGLE([linear-smoothing-sigmas],[],[Smoothing sigmas for linear stage, provide to override automatic generation, must be provided with shrinks and convergence],[])
-# ARG_OPTIONAL_SINGLE([linear-convergence],[],[Convergence levels for linear stage, provide to override automatic generation, must be provided with shrinks and sigmas],[])
+# ARG_OPTIONAL_SINGLE([final-iterations-nonlinear],[],[Maximum iterations at finest scale for non-linear automatic generation],[25])
+
 # ARG_OPTIONAL_SINGLE([volgenmodel-iteration],[],[Call ants_generate_iterations.py with volgenmodel option and specified iteration],[])
-# ARG_OPTIONAL_BOOLEAN([mask-extract],[],[Use masks to extract input images, only works with both images masked],[])
-# ARG_OPTIONAL_BOOLEAN([keep-mask-after-extract],[],[Keep using masks for metric after extraction],[off])
+
 # ARG_OPTIONAL_BOOLEAN([histogram-matching],[],[Enable histogram matching],[])
 # ARG_OPTIONAL_SINGLE([winsorize-image-intensities],[],[Winsorize data based on specified quantiles, comma separated lower,upper],[])
-# ARG_OPTIONAL_BOOLEAN([skip-linear],[],[Skip the linear registration stages])
-# ARG_OPTIONAL_BOOLEAN([skip-nonlinear],[],[Skip the nonlinear stage])
+
 # ARG_OPTIONAL_BOOLEAN([fast],[],[Run fast SyN registration, overrides syn-metric above with Mattes[32]])
 # ARG_OPTIONAL_BOOLEAN([float],[],[Calculate registration using float instead of double])
+
 # ARG_OPTIONAL_BOOLEAN([clobber],[c],[Overwrite files that already exist])
 # ARG_OPTIONAL_BOOLEAN([verbose],[v],[Run commands verbosely],[on])
-# ARG_OPTIONAL_BOOLEAN([debug],[d],[Show all internal comands and logic for debug],[])
+# ARG_OPTIONAL_BOOLEAN([debug],[d],[Show all internal commands and logic for debug],[])
 # ARGBASH_SET_INDENT([  ])
 # ARGBASH_GO()
 # needed because of Argbash --> m4_ignore([
 ### START OF CODE GENERATED BY Argbash v2.10.0 one line above ###
 # Argbash is a bash code generator used to get arguments parsing right.
-# Argbash is FREE SOFTWARE, see https://argbash.io for more info
+# Argbash is FREE SOFTWARE, see https://argbash.dev for more info
 
 
 die()
@@ -80,6 +92,8 @@ _positionals=()
 # THE DEFAULTS INITIALIZATION - OPTIONALS
 _arg_moving_mask="NOMASK"
 _arg_fixed_mask="NOMASK"
+_arg_mask_extract="off"
+_arg_keep_mask_after_extract="off"
 _arg_resampled_output=()
 _arg_resampled_linear_output=()
 _arg_initial_transform="com-masks"
@@ -90,24 +104,22 @@ _arg_fixed=()
 _arg_moving=()
 _arg_weights="1"
 _arg_convergence="1e-6"
+_arg_skip_linear="off"
+_arg_linear_metric="Mattes"
+_arg_linear_shrink_factors=
+_arg_linear_smoothing_sigmas=
+_arg_linear_convergence=
 _arg_final_iterations_linear="20"
-_arg_final_iterations_nonlinear="25"
+_arg_skip_nonlinear="off"
 _arg_syn_control="0.2,3,0"
 _arg_syn_metric="CC[2]"
 _arg_syn_shrink_factors=
 _arg_syn_smoothing_sigmas=
 _arg_syn_convergence=
-_arg_linear_metric="Mattes"
-_arg_linear_shrink_factors=
-_arg_linear_smoothing_sigmas=
-_arg_linear_convergence=
+_arg_final_iterations_nonlinear="25"
 _arg_volgenmodel_iteration=
-_arg_mask_extract="off"
-_arg_keep_mask_after_extract="off"
 _arg_histogram_matching="off"
 _arg_winsorize_image_intensities=
-_arg_skip_linear="off"
-_arg_skip_nonlinear="off"
 _arg_fast="off"
 _arg_float="off"
 _arg_clobber="off"
@@ -118,13 +130,15 @@ _arg_debug="off"
 print_help()
 {
   printf '%s\n' "The general script's help msg"
-  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--(no-)rough] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--final-iterations-linear <arg>] [--final-iterations-nonlinear <arg>] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--linear-metric <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--volgenmodel-iteration <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)skip-linear] [--(no-)skip-nonlinear] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
+  printf 'Usage: %s [-h|--help] [--moving-mask <arg>] [--fixed-mask <arg>] [--(no-)mask-extract] [--(no-)keep-mask-after-extract] [-o|--resampled-output <arg>] [--resampled-linear-output <arg>] [--initial-transform <arg>] [--linear-type <LINEAR>] [--(no-)close] [--(no-)rough] [--fixed <arg>] [--moving <arg>] [--weights <arg>] [--convergence <arg>] [--(no-)skip-linear] [--linear-metric <arg>] [--linear-shrink-factors <arg>] [--linear-smoothing-sigmas <arg>] [--linear-convergence <arg>] [--final-iterations-linear <arg>] [--(no-)skip-nonlinear] [--syn-control <arg>] [--syn-metric <arg>] [--syn-shrink-factors <arg>] [--syn-smoothing-sigmas <arg>] [--syn-convergence <arg>] [--final-iterations-nonlinear <arg>] [--volgenmodel-iteration <arg>] [--(no-)histogram-matching] [--winsorize-image-intensities <arg>] [--(no-)fast] [--(no-)float] [-c|--(no-)clobber] [-v|--(no-)verbose] [-d|--(no-)debug] <movingfile> <fixedfile> <outputbasename>\n' "$0"
   printf '\t%s\n' "<movingfile>: The moving image"
   printf '\t%s\n' "<fixedfile>: The fixed image"
   printf '\t%s\n' "<outputbasename>: The basename for the output transforms"
   printf '\t%s\n' "-h, --help: Prints help"
   printf '\t%s\n' "--moving-mask: Mask for moving image (default: 'NOMASK')"
   printf '\t%s\n' "--fixed-mask: Mask for fixed image (default: 'NOMASK')"
+  printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
+  printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
   printf '\t%s\n' "-o, --resampled-output: Output resampled file(s), repeat for resampling multispectral outputs (empty by default)"
   printf '\t%s\n' "--resampled-linear-output: Output resampled file(s) with only linear transform, repeat for resampling multispectral outputs (empty by default)"
   printf '\t%s\n' "--initial-transform: Initial moving transformation for registration. Can be one of: 'com-masks', 'com', 'cov', 'origin', 'none', or a transform filename, comma separated initalizations are applied like a stack, last in list first (default: 'com-masks')"
@@ -135,29 +149,27 @@ print_help()
   printf '\t%s\n' "--moving: Additional moving images for multispectral registration, pair with --fixed in order (empty by default)"
   printf '\t%s\n' "--weights: A single value, which disables weighting, or a comma separated list of weights, ordered primary pair, followed by multispectral pairs (default: '1')"
   printf '\t%s\n' "--convergence: Convergence stopping value for registration (default: '1e-6')"
-  printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear (default: '20')"
-  printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear (default: '25')"
+  printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
+  printf '\t%s\n' "--linear-metric: Linear metric (default: 'Mattes')"
+  printf '\t%s\n' "--linear-shrink-factors: Shrink factors for linear stage, provide to override automatic generation, must be provided with sigmas and convergence (no default)"
+  printf '\t%s\n' "--linear-smoothing-sigmas: Smoothing sigmas for linear stage, provide to override automatic generation, must be provided with shrinks and convergence (no default)"
+  printf '\t%s\n' "--linear-convergence: Convergence levels for linear stage, provide to override automatic generation, must be provided with shrinks and sigmas (no default)"
+  printf '\t%s\n' "--final-iterations-linear: Maximum iterations at finest scale for linear automatic generation (default: '20')"
+  printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
   printf '\t%s\n' "--syn-control: Non-linear (SyN) gradient and regularization parameters, not checked for correctness (default: '0.2,3,0')"
   printf '\t%s\n' "--syn-metric: Non-linear (SyN) metric and radius or bins, choose Mattes[32] for faster registrations (default: 'CC[2]')"
   printf '\t%s\n' "--syn-shrink-factors: Shrink factors for Non-linear (SyN) stage, provide to override automatic generation, must be provided with sigmas and convergence (no default)"
   printf '\t%s\n' "--syn-smoothing-sigmas: Smoothing sigmas for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and convergence (no default)"
   printf '\t%s\n' "--syn-convergence: Convergence levels for Non-linear (SyN) stage, provide to override automatic generation, must be provided with shrinks and sigmas (no default)"
-  printf '\t%s\n' "--linear-metric: Linear metric (default: 'Mattes')"
-  printf '\t%s\n' "--linear-shrink-factors: Shrink factors for linear stage, provide to override automatic generation, must be provided with sigmas and convergence (no default)"
-  printf '\t%s\n' "--linear-smoothing-sigmas: Smoothing sigmas for linear stage, provide to override automatic generation, must be provided with shrinks and convergence (no default)"
-  printf '\t%s\n' "--linear-convergence: Convergence levels for linear stage, provide to override automatic generation, must be provided with shrinks and sigmas (no default)"
+  printf '\t%s\n' "--final-iterations-nonlinear: Maximum iterations at finest scale for non-linear automatic generation (default: '25')"
   printf '\t%s\n' "--volgenmodel-iteration: Call ants_generate_iterations.py with volgenmodel option and specified iteration (no default)"
-  printf '\t%s\n' "--mask-extract, --no-mask-extract: Use masks to extract input images, only works with both images masked (off by default)"
-  printf '\t%s\n' "--keep-mask-after-extract, --no-keep-mask-after-extract: Keep using masks for metric after extraction (off by default)"
   printf '\t%s\n' "--histogram-matching, --no-histogram-matching: Enable histogram matching (off by default)"
   printf '\t%s\n' "--winsorize-image-intensities: Winsorize data based on specified quantiles, comma separated lower,upper (no default)"
-  printf '\t%s\n' "--skip-linear, --no-skip-linear: Skip the linear registration stages (off by default)"
-  printf '\t%s\n' "--skip-nonlinear, --no-skip-nonlinear: Skip the nonlinear stage (off by default)"
   printf '\t%s\n' "--fast, --no-fast: Run fast SyN registration, overrides syn-metric above with Mattes[32] (off by default)"
   printf '\t%s\n' "--float, --no-float: Calculate registration using float instead of double (off by default)"
   printf '\t%s\n' "-c, --clobber, --no-clobber: Overwrite files that already exist (off by default)"
   printf '\t%s\n' "-v, --verbose, --no-verbose: Run commands verbosely (on by default)"
-  printf '\t%s\n' "-d, --debug, --no-debug: Show all internal comands and logic for debug (off by default)"
+  printf '\t%s\n' "-d, --debug, --no-debug: Show all internal commands and logic for debug (off by default)"
 }
 
 
@@ -191,6 +203,14 @@ parse_commandline()
         ;;
       --fixed-mask=*)
         _arg_fixed_mask="${_key##--fixed-mask=}"
+        ;;
+      --no-mask-extract|--mask-extract)
+        _arg_mask_extract="on"
+        test "${1:0:5}" = "--no-" && _arg_mask_extract="off"
+        ;;
+      --no-keep-mask-after-extract|--keep-mask-after-extract)
+        _arg_keep_mask_after_extract="on"
+        test "${1:0:5}" = "--no-" && _arg_keep_mask_after_extract="off"
         ;;
       -o|--resampled-output)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -267,6 +287,42 @@ parse_commandline()
       --convergence=*)
         _arg_convergence="${_key##--convergence=}"
         ;;
+      --no-skip-linear|--skip-linear)
+        _arg_skip_linear="on"
+        test "${1:0:5}" = "--no-" && _arg_skip_linear="off"
+        ;;
+      --linear-metric)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_linear_metric="$2"
+        shift
+        ;;
+      --linear-metric=*)
+        _arg_linear_metric="${_key##--linear-metric=}"
+        ;;
+      --linear-shrink-factors)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_linear_shrink_factors="$2"
+        shift
+        ;;
+      --linear-shrink-factors=*)
+        _arg_linear_shrink_factors="${_key##--linear-shrink-factors=}"
+        ;;
+      --linear-smoothing-sigmas)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_linear_smoothing_sigmas="$2"
+        shift
+        ;;
+      --linear-smoothing-sigmas=*)
+        _arg_linear_smoothing_sigmas="${_key##--linear-smoothing-sigmas=}"
+        ;;
+      --linear-convergence)
+        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
+        _arg_linear_convergence="$2"
+        shift
+        ;;
+      --linear-convergence=*)
+        _arg_linear_convergence="${_key##--linear-convergence=}"
+        ;;
       --final-iterations-linear)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
         _arg_final_iterations_linear="$2"
@@ -275,13 +331,9 @@ parse_commandline()
       --final-iterations-linear=*)
         _arg_final_iterations_linear="${_key##--final-iterations-linear=}"
         ;;
-      --final-iterations-nonlinear)
-        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_final_iterations_nonlinear="$2"
-        shift
-        ;;
-      --final-iterations-nonlinear=*)
-        _arg_final_iterations_nonlinear="${_key##--final-iterations-nonlinear=}"
+      --no-skip-nonlinear|--skip-nonlinear)
+        _arg_skip_nonlinear="on"
+        test "${1:0:5}" = "--no-" && _arg_skip_nonlinear="off"
         ;;
       --syn-control)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -323,37 +375,13 @@ parse_commandline()
       --syn-convergence=*)
         _arg_syn_convergence="${_key##--syn-convergence=}"
         ;;
-      --linear-metric)
+      --final-iterations-nonlinear)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_linear_metric="$2"
+        _arg_final_iterations_nonlinear="$2"
         shift
         ;;
-      --linear-metric=*)
-        _arg_linear_metric="${_key##--linear-metric=}"
-        ;;
-      --linear-shrink-factors)
-        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_linear_shrink_factors="$2"
-        shift
-        ;;
-      --linear-shrink-factors=*)
-        _arg_linear_shrink_factors="${_key##--linear-shrink-factors=}"
-        ;;
-      --linear-smoothing-sigmas)
-        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_linear_smoothing_sigmas="$2"
-        shift
-        ;;
-      --linear-smoothing-sigmas=*)
-        _arg_linear_smoothing_sigmas="${_key##--linear-smoothing-sigmas=}"
-        ;;
-      --linear-convergence)
-        test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
-        _arg_linear_convergence="$2"
-        shift
-        ;;
-      --linear-convergence=*)
-        _arg_linear_convergence="${_key##--linear-convergence=}"
+      --final-iterations-nonlinear=*)
+        _arg_final_iterations_nonlinear="${_key##--final-iterations-nonlinear=}"
         ;;
       --volgenmodel-iteration)
         test $# -lt 2 && die "Missing value for the optional argument '$_key'." 1
@@ -362,14 +390,6 @@ parse_commandline()
         ;;
       --volgenmodel-iteration=*)
         _arg_volgenmodel_iteration="${_key##--volgenmodel-iteration=}"
-        ;;
-      --no-mask-extract|--mask-extract)
-        _arg_mask_extract="on"
-        test "${1:0:5}" = "--no-" && _arg_mask_extract="off"
-        ;;
-      --no-keep-mask-after-extract|--keep-mask-after-extract)
-        _arg_keep_mask_after_extract="on"
-        test "${1:0:5}" = "--no-" && _arg_keep_mask_after_extract="off"
         ;;
       --no-histogram-matching|--histogram-matching)
         _arg_histogram_matching="on"
@@ -382,14 +402,6 @@ parse_commandline()
         ;;
       --winsorize-image-intensities=*)
         _arg_winsorize_image_intensities="${_key##--winsorize-image-intensities=}"
-        ;;
-      --no-skip-linear|--skip-linear)
-        _arg_skip_linear="on"
-        test "${1:0:5}" = "--no-" && _arg_skip_linear="off"
-        ;;
-      --no-skip-nonlinear|--skip-nonlinear)
-        _arg_skip_nonlinear="on"
-        test "${1:0:5}" = "--no-" && _arg_skip_nonlinear="off"
         ;;
       --no-fast|--fast)
         _arg_fast="on"
