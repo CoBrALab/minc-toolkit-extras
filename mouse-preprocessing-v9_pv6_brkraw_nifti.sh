@@ -269,20 +269,42 @@ mincresample -keep -near -label -transform ${tmpdir}/transform_to_input.xfm \
   ${tmpdir}/mask.mnc \
   ${tmpdir}/output_mask.mnc
 
+# Make an LSQ6 transform
+xfminvert ${tmpdir}/to_model_0_GenericAffine.xfm ${tmpdir}/to_model_0_GenericAffine_inv.xfm
+param2xfm $(xfm2param ${tmpdir}/to_model_0_GenericAffine_inv.xfm | grep -E 'scale|shear') ${tmpdir}/scaleshear.xfm
+xfminvert ${tmpdir}/scaleshear.xfm ${tmpdir}/unscaleshear.xfm
+xfmconcat ${tmpdir}/to_model_0_GenericAffine_inv.xfm ${tmpdir}/unscaleshear.xfm ${tmpdir}/lsq6.xfm
+
+mincresample -tfm_input_sampling \
+  -transform ${tmpdir}/lsq6.xfm \
+  ${tmpdir}/corrected_denoise_renorm.mnc ${tmpdir}/subject_lsq6.mnc
+
+mincresample -like ${tmpdir}/subject_lsq6.mnc -keep -near -labels \
+  -transform ${tmpdir}/lsq6.xfm \
+  ${tmpdir}/mask.mnc ${tmpdir}/mask_lsq6.mnc
+
 if [[ ${output} == *nii || ${output} == *nii.gz ]]; then
   if [[ ${output} == *gz ]]; then
     mnc2nii ${tmpdir}/output.mnc ${tmpdir}/output.nii
     mnc2nii ${tmpdir}/output_mask.mnc ${tmpdir}/output_mask.nii
-    pigz ${tmpdir}/output*.nii
+    mnc2nii ${tmpdir}/subject_lsq6.mnc ${tmpdir}/subject_lsq6.nii
+    mnc2nii ${tmpdir}/mask_lsq6.mnc ${tmpdir}/mask_lsq6.nii
+    pigz ${tmpdir}/output*.nii ${tmpdir}/*lsq6.nii
     cp ${tmpdir}/output.nii.gz ${output}
     cp ${tmpdir}/output_mask.nii.gz $(dirname ${output})/$(basename ${output} .nii.gz)_mask.nii.gz
+    cp ${tmpdir}/subject_lsq6.nii.gz $(dirname ${output})/$(basename ${output} .nii.gz)_lsq6.nii.gz
+    cp ${tmpdir}/mask_lsq6.nii.gz $(dirname ${output})/$(basename ${output} .nii.gz)_lsq6_mask.nii.gz
   else
     mnc2nii ${tmpdir}/output.mnc ${output}
     mnc2nii ${tmpdir}/output_mask.mnc $(dirname ${output})/$(basename ${output} .nii)_mask.nii
+    mnc2nii ${tmpdir}/subject_lsq6.mnc $(dirname ${output})/$(basename ${output} .nii)_lsq6.nii
+    mnc2nii ${tmpdir}/mask_lsq6.mnc $(dirname ${output})/$(basename ${output} .nii)_lsq6_mask.nii
   fi
 else
   cp ${tmpdir}/output.mnc ${output}
   cp ${tmpdir}/output_mask.mnc $(dirname ${output})/$(basename ${output} .mnc)_mask.mnc
+  cp ${tmpdir}/subject_lsq6.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6.mnc
+  cp ${tmpdir}/mask_lsq6.mnc $(dirname ${output})/$(basename ${output} .mnc)_lsq6_mask.mnc
 fi
 
 rm -rf ${tmpdir}
