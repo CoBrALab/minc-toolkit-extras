@@ -127,19 +127,23 @@ output=$2
 # Fixed downsample resolution
 _downsample_res=0.2
 
-REGMODEL=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/ex-vivo/DSURQE_40micron_N4_recrop.mnc
-REGMASK=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/ex-vivo/DSURQE_40micron_N4_recrop_mask.mnc
+MODEL=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/ex-vivo/DSURQE_40micron_N4_recrop.mnc
+MODEL_MASK=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/ex-vivo/DSURQE_40micron_N4_recrop_mask.mnc
 
 # Generate a lower resolution version of the model for registration
 minres=$(python -c "print(max([str(abs(x)) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
-isotropize_downsample ${REGMODEL} ${minres} ${tmpdir}/model.mnc
-REGMODEL=${tmpdir}/model.mnc
+if awk -v minres="$minres" 'BEGIN { if (minres > 0.04) exit 0; else exit 1 }'; then
+  isotropize_downsample ${REGMODEL} ${minres} ${tmpdir}/model.mnc
+  REGMODEL=${tmpdir}/model.mnc
+  #Resample the mask
+  mincresample -keep -near -unsigned -byte -label -like ${REGMODEL} ${MODEL_MASK} ${tmpdir}/model_mask.mnc
+  REGMASK=${tmpdir}/model_mask.mnc
+else
+  REGMODEL=${MODEL}
+  REGMASK=${MODEL_MASK}
+fi
 
-minccalc -expression "1" -unsigned -byte ${tmpdir}/model.mnc ${tmpdir}/model_fov.mnc
-
-#Resample the mask
-mincresample -keep -near -label -like ${REGMODEL} ${REGMASK} ${tmpdir}/model_mask.mnc
-REGMASKDOWN=${tmpdir}/model_mask.mnc
+minccalc -expression "1" -unsigned -byte ${REGMODEL} ${tmpdir}/model_fov.mnc
 
 # Fix sometimes malformed niftis
 ConvertImage 3 ${input} ${tmpdir}/input.nii.gz
@@ -178,17 +182,32 @@ threshold_image_to_mask ${tmpdir}/norm.mnc ${tmpdir}/weight1.mnc
 #Do the initial bias field correction
 weighted_n4 ${tmpdir}/norm.mnc ${tmpdir}/weight1.mnc ${tmpdir}/corrected_denoise_renorm.mnc ${tmpdir}/bias1.mnc
 
+# Really rough registration
+isotropize_downsample ${tmpdir}/corrected_denoise_renorm.mnc 0.5 ${tmpdir}/antsAI_subject.mnc
+isotropize_downsample ${REGMODEL} 0.5 ${tmpdir}/antsAI_template.mnc
+
+antsAI antsAI -d 3 -v 1 \
+  -m Mattes[ ${tmpdir}/antsAI_template.mnc,${tmpdir}/antsAI_subject.mnc,32,Regular,0.5 ] \
+  -t AlignCentersOfMass \
+  -t Similarity[ 0.5 ] \
+  -s [ 20,1 ] \
+  -g [ 0.25,0x0x0 ] \
+  -p 0 \
+  -c 10 \
+  -o ${tmpdir}/antsAI.mat
+
 #Rough registration
 antsRegistration_affine_SyN.sh \
+  --initial-transform ${tmpdir}/antsAI.mat \
   --skip-nonlinear \
-  --fixed-mask ${REGMASKDOWN} \
+  --fixed-mask ${REGMASK} \
   ${tmpdir}/corrected_denoise_renorm.mnc \
   ${REGMODEL} \
   ${tmpdir}/to_model_
 
 # Initial Mask
 antsApplyTransforms -d 3 --verbose -n GenericLabel \
-  -i ${REGMASK} \
+  -i ${MODEL_MASK} \
   -t [ ${tmpdir}/to_model_0_GenericAffine.xfm,1 ] \
   -r ${tmpdir}/corrected_denoise_renorm.mnc \
   -o ${tmpdir}/affine_mask.mnc -n GenericLabel
@@ -203,7 +222,7 @@ weighted_n4 ${tmpdir}/precorrect.mnc ${tmpdir}/affine_mask.mnc ${tmpdir}/correct
 antsRegistration_affine_SyN.sh --clobber \
   --initial-transform ${tmpdir}/to_model_0_GenericAffine.xfm \
   --skip-nonlinear \
-  --fixed-mask ${REGMASKDOWN} \
+  --fixed-mask ${REGMASK} \
   --moving-mask ${tmpdir}/affine_mask.mnc \
   --close \
   ${tmpdir}/corrected_denoise_renorm.mnc \
@@ -219,7 +238,7 @@ antsApplyTransforms -d 3 --verbose -n GenericLabel \
 
 # Regenerate an affine mask
 antsApplyTransforms -d 3 --verbose -n GenericLabel \
-  -i ${REGMASK} \
+  -i ${MODEL_MASK} \
   -t [ ${tmpdir}/to_model_0_GenericAffine.xfm,1 ] \
   -r ${tmpdir}/corrected_denoise_renorm.mnc \
   -o ${tmpdir}/affine_mask.mnc
@@ -243,7 +262,7 @@ antsRegistration_affine_SyN.sh --clobber \
   ${tmpdir}/to_model_
 
 antsApplyTransforms -d 3 --verbose -n GenericLabel \
-  -i ${REGMASK} \
+  -i ${MODEL_MASK} \
   -t [ ${tmpdir}/to_model_0_GenericAffine.xfm,1 ] \
   -t ${tmpdir}/to_model_1_inverse_NL.xfm \
   -r ${tmpdir}/corrected_denoise_renorm.mnc \
