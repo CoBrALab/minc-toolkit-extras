@@ -133,7 +133,7 @@ MODEL_MASK=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Ric
 # Generate a lower resolution version of the model for registration
 minres=$(python -c "print(max([str(abs(x)) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
 if awk -v minres="$minres" 'BEGIN { if (minres > 0.04) exit 0; else exit 1 }'; then
-  isotropize_downsample ${REGMODEL} ${minres} ${tmpdir}/model.mnc
+  isotropize_downsample ${MODEL} ${minres} ${tmpdir}/model.mnc
   REGMODEL=${tmpdir}/model.mnc
   #Resample the mask
   mincresample -keep -near -unsigned -byte -label -like ${REGMODEL} ${MODEL_MASK} ${tmpdir}/model_mask.mnc
