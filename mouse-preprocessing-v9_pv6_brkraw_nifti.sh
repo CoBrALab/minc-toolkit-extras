@@ -117,7 +117,7 @@ function threshold_image_to_mask() {
   rm -rf ${tmpdir}
 }
 
-tmpdir=$(mktemp -d)
+tmpdir=localtmp
 
 mkdir -p ${tmpdir}
 
@@ -131,7 +131,7 @@ MODEL=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards
 MODEL_MASK=${QUARANTINE_PATH}/resources/Dorr_2008_Steadman_2013_Ullmann_2013_Richards_2011_Qiu_2016_Egan_2015_40micron/ex-vivo/DSURQE_40micron_N4_recrop_mask.mnc
 
 # Generate a lower resolution version of the model for registration
-minres=$(python -c "print(max([str(abs(x)) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
+minres=$(python -c "print(min([str(abs(x)) for x in [float(x) for x in \"$(PrintHeader ${input} 1)\".split(\"x\")]]))")
 if awk -v minres="$minres" 'BEGIN { if (minres > 0.04) exit 0; else exit 1 }'; then
   isotropize_downsample ${MODEL} ${minres} ${tmpdir}/model.mnc
   REGMODEL=${tmpdir}/model.mnc
@@ -189,7 +189,7 @@ isotropize_downsample ${REGMODEL} 0.5 ${tmpdir}/antsAI_template.mnc
 antsAI antsAI -d 3 -v 1 \
   -m Mattes[ ${tmpdir}/antsAI_template.mnc,${tmpdir}/antsAI_subject.mnc,32,Regular,0.5 ] \
   -t AlignCentersOfMass \
-  -t Similarity[ 0.5 ] \
+  -t Rigid[ 0.5 ] \
   -s [ 20,1 ] \
   -g [ 0.25,0x0x0 ] \
   -p 0 \
