@@ -117,7 +117,7 @@ function threshold_image_to_mask() {
   rm -rf ${tmpdir}
 }
 
-tmpdir=localtmp
+tmpdir=$(mktemp -d)
 
 mkdir -p ${tmpdir}
 
