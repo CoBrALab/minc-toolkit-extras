@@ -727,7 +727,8 @@ else
   fixedmask=${_arg_fixed_mask}
 fi
 
-if [[ ${fixedmask} == "NOMASK" && ${movingmask} == "NOMASK" ]]; then
+if [[ (${fixedmask} == "NOMASK" || ${fixedmask} == "NULL") ]] && \
+   [[ (${movingmask} == "NOMASK" || ${movingmask} == "NULL") ]]; then
   _no_masks="--no-masks"
 fi
 
@@ -736,7 +737,7 @@ IFS=', ' read -r -a _arg_initial_transform <<< "${_arg_initial_transform}"
 initial_transform=""
 for initxfm in "${_arg_initial_transform[@]}"; do
   if [[ ${initxfm} == "com-masks" ]]; then
-    if [[  ${_arg_fixed_mask} != "NOMASK" && ${_arg_moving_mask} != "NOMASK" ]]; then
+    if [[ ${_arg_fixed_mask} != "NOMASK" && ${_arg_fixed_mask} != "NULL" && ${_arg_moving_mask} != "NOMASK" && ${_arg_moving_mask} != "NULL" ]]; then
       info "Adding Center-of-Mass between $(basename ${_arg_fixed_mask}) and $(basename ${_arg_moving_mask}) for registration initialization"
       initial_transform+="--initial-moving-transform [ ${_arg_fixed_mask},${_arg_moving_mask},1 ] "
     else
