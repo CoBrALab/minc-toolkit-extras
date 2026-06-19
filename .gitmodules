@@ -1,0 +1,3 @@
+[submodule "antsRegistration_affine_SyN"]
+	path = antsRegistration_affine_SyN
+	url = https://github.com/CoBrALab/antsRegistration_affine_SyN
